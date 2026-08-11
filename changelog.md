@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11
+
+- Added backend-only `DATABASE_URL` and `NATS_URL` environment variable examples for PostgreSQL 15 NEO DB and NATS JetStream.
+- Added credential-safe Git ignore rules and documented the Static Web to API to database/queue integration boundary.
+
 ## 2026-08-10
 
 - Rebuilt the deployment artifact as framework-free static HTML, CSS, and JavaScript to avoid Nuxt base-path and rewrite dependencies.
