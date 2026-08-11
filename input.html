@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Form input pegawai untuk NEO DB PostgreSQL 15.">
+  <title>Tambah Data | Employee Database Lab</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="assets/tokens.css">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/config.js" defer></script>
+  <script src="assets/app.js" defer></script>
+</head>
+<body data-page="input">
+  <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="index.html" aria-label="Employee Database Lab">
+        <img src="assets/wordmark.svg" alt="Biznet Gio">
+      </a>
+      <nav class="main-nav" id="primary-nav" aria-label="Navigasi utama">
+        <a class="nav-link" href="index.html">Ringkasan</a>
+        <a class="nav-link" href="query.html">Query SQL</a>
+        <a class="nav-link is-active" href="input.html" aria-current="page">Tambah Data</a>
+      </nav>
+      <div class="api-indicator" data-api-indicator>
+        <span class="status-dot" aria-hidden="true"></span>
+        <span data-api-label>Memuat referensi</span>
+      </div>
+      <button class="menu-toggle" type="button" aria-label="Buka navigasi" aria-expanded="false" aria-controls="primary-nav" data-menu-toggle>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="page-heading page-heading-compact">
+      <div class="shell">
+        <p class="eyebrow">Employee record</p>
+        <h1>Tambah Data Pegawai</h1>
+        <p class="heading-copy">Data dikirim ke API, diproses oleh NEO Queue, lalu disimpan ke NEO DB.</p>
+      </div>
+    </section>
+
+    <section class="content-band">
+      <div class="shell form-layout">
+        <form class="surface employee-form" id="employee-form">
+          <div class="surface-heading">
+            <div>
+              <p class="eyebrow">Data utama</p>
+              <h2>Informasi pegawai</h2>
+            </div>
+          </div>
+
+          <div class="message is-hidden" id="form-message" role="status"></div>
+
+          <div class="field-grid">
+            <div class="field field-wide">
+              <label for="full-name">Nama lengkap</label>
+              <input id="full-name" name="fullName" type="text" maxlength="120" autocomplete="name" required>
+            </div>
+            <div class="field">
+              <label for="email">Alamat email</label>
+              <input id="email" name="email" type="email" maxlength="120" autocomplete="email" required>
+            </div>
+            <div class="field">
+              <label for="job-title">Jabatan</label>
+              <input id="job-title" name="jobTitle" type="text" maxlength="100" autocomplete="organization-title" required>
+            </div>
+            <div class="field">
+              <label for="hired-date">Tanggal bergabung</label>
+              <input id="hired-date" name="hiredDate" type="date" required>
+            </div>
+            <div class="field">
+              <label for="site-id">Lokasi kantor</label>
+              <select id="site-id" name="siteId" required disabled>
+                <option value="">Pilih lokasi</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="salary-id">Grade gaji</label>
+              <select id="salary-id" name="salaryId" required disabled>
+                <option value="">Pilih grade</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="seating-id">Kode tempat duduk</label>
+              <select id="seating-id" name="seatingId" required disabled>
+                <option value="">Pilih tempat duduk</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-actions form-actions-split">
+            <button class="button button-secondary" type="reset">Bersihkan</button>
+            <button class="button button-primary" id="submit-employee" type="submit" disabled>Kirim data</button>
+          </div>
+        </form>
+
+        <aside class="surface integrity-panel" aria-labelledby="integrity-title">
+          <p class="eyebrow">Data integrity</p>
+          <h2 id="integrity-title">Validasi</h2>
+          <ul class="check-list">
+            <li>Email harus unik.</li>
+            <li>Tempat duduk harus sesuai lokasi.</li>
+            <li>Referensi diperiksa ulang oleh worker.</li>
+            <li>Retry menggunakan idempotency key.</li>
+          </ul>
+          <div class="queue-flow">
+            <span>API</span><span aria-hidden="true">&gt;</span><span>NEO Queue</span><span aria-hidden="true">&gt;</span><span>Worker</span><span aria-hidden="true">&gt;</span><span>NEO DB</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-grid">
+      <section class="footer-brand" aria-labelledby="footer-company">
+        <img src="assets/wordmark.svg" alt="Biznet Gio" height="32">
+        <h2 id="footer-company">PT Biznet Gio Nusantara</h2>
+        <address>Midplaza 1, 7th Floor<br>Jalan Jenderal Sudirman Kav. 10-11<br>Jakarta 10220</address>
+      </section>
+      <section class="footer-column" aria-labelledby="footer-support"><h2 id="footer-support">Support</h2><a href="query.html#query-policy">Query policy</a><a href="input.html">Data entry</a></section>
+      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">SQL Console</a><a href="input.html">Employee Form</a></section>
+      <section class="footer-column" aria-labelledby="footer-insights"><h2 id="footer-insights">Insights</h2><a href="index.html#schema-title">Schema overview</a><a href="query.html">SQL examples</a></section>
+      <section class="footer-column" aria-labelledby="footer-legal"><h2 id="footer-legal">Legal</h2><span>Testing environment</span><span>No production data</span></section>
+    </div>
+    <div class="shell footer-meta"><span>Employee Database Lab</span><span>Asynchronous write workflow</span></div>
+  </footer>
+</body>
+</html>

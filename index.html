@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Frontend statis Employee Database Lab untuk NEO DB PostgreSQL 15.">
+  <title>Employee Database Lab</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="assets/tokens.css">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/config.js" defer></script>
+  <script src="assets/app.js" defer></script>
+</head>
+<body data-page="home">
+  <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="index.html" aria-label="Employee Database Lab">
+        <img src="assets/wordmark.svg" alt="Biznet Gio">
+      </a>
+      <nav class="main-nav" id="primary-nav" aria-label="Navigasi utama">
+        <a class="nav-link is-active" href="index.html" aria-current="page">Ringkasan</a>
+        <a class="nav-link" href="query.html">Query SQL</a>
+        <a class="nav-link" href="input.html">Tambah Data</a>
+      </nav>
+      <div class="api-indicator" data-api-indicator>
+        <span class="status-dot" aria-hidden="true"></span>
+        <span data-api-label>Menunggu API</span>
+      </div>
+      <button class="menu-toggle" type="button" aria-label="Buka navigasi" aria-expanded="false" aria-controls="primary-nav" data-menu-toggle>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="page-heading">
+      <div class="shell heading-layout">
+        <div>
+          <p class="eyebrow">NEO App / Shared Resource</p>
+          <h1>Employee Database Lab</h1>
+          <p class="heading-copy">Kelola dan periksa data pegawai melalui API yang terhubung ke NEO DB PostgreSQL 15.</p>
+        </div>
+        <div class="heading-actions">
+          <a class="button button-primary" href="query.html">Buka Query SQL</a>
+          <a class="button button-secondary" href="input.html">Tambah Pegawai</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-band" aria-labelledby="summary-title">
+      <div class="shell">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Data terkini</p>
+            <h2 id="summary-title">Ringkasan database</h2>
+          </div>
+          <span class="refresh-note" id="summary-note" role="status">Menghubungkan...</span>
+        </div>
+
+        <dl class="metric-grid">
+          <div class="metric">
+            <dt>Pegawai</dt>
+            <dd id="metric-employees">-</dd>
+          </div>
+          <div class="metric">
+            <dt>Lokasi kantor</dt>
+            <dd id="metric-sites">-</dd>
+          </div>
+          <div class="metric">
+            <dt>Perangkat</dt>
+            <dd id="metric-devices">-</dd>
+          </div>
+          <div class="metric metric-accent">
+            <dt>Database engine</dt>
+            <dd>PostgreSQL 15</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="content-band content-band-muted" aria-labelledby="workspace-title">
+      <div class="shell">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h2 id="workspace-title">Operasi data</h2>
+          </div>
+        </div>
+
+        <div class="action-grid">
+          <article class="action-item">
+            <div class="action-index">01</div>
+            <div>
+              <h3>Query read-only</h3>
+              <p>Jalankan SELECT, WITH, dan EXPLAIN dengan batas hasil 200 baris.</p>
+            </div>
+            <a class="text-link" href="query.html">Buka console</a>
+          </article>
+          <article class="action-item">
+            <div class="action-index">02</div>
+            <div>
+              <h3>Input pegawai</h3>
+              <p>Kirim data tervalidasi melalui API dan proses asynchronous NEO Queue.</p>
+            </div>
+            <a class="text-link" href="input.html">Buka formulir</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-band" aria-labelledby="schema-title">
+      <div class="shell">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Schema employee_app</p>
+            <h2 id="schema-title">Relasi utama</h2>
+          </div>
+        </div>
+        <div class="table-frame">
+          <table class="schema-table">
+            <thead>
+              <tr><th>Entitas</th><th>Fungsi</th><th>Relasi</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>employees</code></td><td>Profil dan pekerjaan pegawai</td><td>sites, salaries, seating</td></tr>
+              <tr><td><code>sites</code></td><td>Lokasi kantor</td><td>seating, employees, devices</td></tr>
+              <tr><td><code>salaries</code></td><td>Grade dan komponen gaji</td><td>employees</td></tr>
+              <tr><td><code>seating</code></td><td>Posisi tempat duduk</td><td>sites, employees</td></tr>
+              <tr><td><code>employee_devices</code></td><td>Perangkat yang ditugaskan</td><td>employees, sites</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-grid">
+      <section class="footer-brand" aria-labelledby="footer-company">
+        <img src="assets/wordmark.svg" alt="Biznet Gio" height="32">
+        <h2 id="footer-company">PT Biznet Gio Nusantara</h2>
+        <address>Midplaza 1, 7th Floor<br>Jalan Jenderal Sudirman Kav. 10-11<br>Jakarta 10220</address>
+      </section>
+      <section class="footer-column" aria-labelledby="footer-support"><h2 id="footer-support">Support</h2><a href="query.html#query-policy">Query policy</a><a href="input.html">Data entry</a></section>
+      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">SQL Console</a><a href="input.html">Employee Form</a></section>
+      <section class="footer-column" aria-labelledby="footer-insights"><h2 id="footer-insights">Insights</h2><a href="index.html#schema-title">Schema overview</a><a href="query.html">SQL examples</a></section>
+      <section class="footer-column" aria-labelledby="footer-legal"><h2 id="footer-legal">Legal</h2><span>Testing environment</span><span>No production data</span></section>
+    </div>
+    <div class="shell footer-meta"><span>Employee Database Lab</span><span>NEO DB PostgreSQL 15</span></div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Console query read-only untuk NEO DB PostgreSQL 15.">
+  <title>Query SQL | Employee Database Lab</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="assets/tokens.css">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/config.js" defer></script>
+  <script src="assets/app.js" defer></script>
+</head>
+<body data-page="query">
+  <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="index.html" aria-label="Employee Database Lab">
+        <img src="assets/wordmark.svg" alt="Biznet Gio">
+      </a>
+      <nav class="main-nav" id="primary-nav" aria-label="Navigasi utama">
+        <a class="nav-link" href="index.html">Ringkasan</a>
+        <a class="nav-link is-active" href="query.html" aria-current="page">Query SQL</a>
+        <a class="nav-link" href="input.html">Tambah Data</a>
+      </nav>
+      <div class="api-indicator" data-api-indicator>
+        <span class="status-dot" aria-hidden="true"></span>
+        <span data-api-label>API siap dikonfigurasi</span>
+      </div>
+      <button class="menu-toggle" type="button" aria-label="Buka navigasi" aria-expanded="false" aria-controls="primary-nav" data-menu-toggle>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="page-heading page-heading-compact">
+      <div class="shell">
+        <p class="eyebrow">PostgreSQL workspace</p>
+        <h1>Query SQL</h1>
+        <p class="heading-copy">Console read-only untuk schema <code>employee_app</code>.</p>
+      </div>
+    </section>
+
+    <section class="content-band">
+      <div class="shell query-layout">
+        <form class="surface query-editor" id="query-form">
+          <div class="surface-heading">
+            <div>
+              <p class="eyebrow">SQL editor</p>
+              <h2>Statement</h2>
+            </div>
+            <span class="mode-badge">Read only</span>
+          </div>
+          <label for="sql-editor">SQL</label>
+          <textarea id="sql-editor" name="sql" rows="13" spellcheck="false" required>SELECT
+  e.employee_id,
+  e.full_name,
+  e.job_title,
+  s.site_name,
+  st.seat_code,
+  sal.salary_grade
+FROM employee_app.employees AS e
+JOIN employee_app.sites AS s ON s.site_id = e.site_id
+JOIN employee_app.seating AS st ON st.seating_id = e.seating_id
+JOIN employee_app.salaries AS sal ON sal.salary_id = e.salary_id
+ORDER BY e.employee_id
+LIMIT 200;</textarea>
+          <div class="form-actions">
+            <button class="button button-primary" id="run-query" type="submit">Jalankan query</button>
+          </div>
+        </form>
+
+        <aside class="surface example-panel" aria-labelledby="examples-title">
+          <p class="eyebrow">Preset</p>
+          <h2 id="examples-title">Contoh query</h2>
+          <div class="example-list">
+            <button type="button" data-query-example="employees">Ringkasan pegawai</button>
+            <button type="button" data-query-example="devices">Perangkat per pegawai</button>
+            <button type="button" data-query-example="sites">Jumlah pegawai per lokasi</button>
+          </div>
+          <div class="policy-block" id="query-policy">
+            <h3>Query policy</h3>
+            <p>SELECT, WITH, dan EXPLAIN. Maksimum 200 baris dan satu statement per request.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="content-band content-band-muted" aria-labelledby="result-title">
+      <div class="shell">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Result</p>
+            <h2 id="result-title">Hasil query</h2>
+          </div>
+          <span class="refresh-note" id="result-meta">Belum ada query</span>
+        </div>
+        <div class="message message-error is-hidden" id="query-error" role="alert"></div>
+        <div class="empty-result" id="query-empty">Hasil akan ditampilkan di area ini.</div>
+        <div class="table-frame is-hidden" id="query-table-frame" tabindex="0" aria-label="Hasil query">
+          <table id="query-result-table"></table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-grid">
+      <section class="footer-brand" aria-labelledby="footer-company">
+        <img src="assets/wordmark.svg" alt="Biznet Gio" height="32">
+        <h2 id="footer-company">PT Biznet Gio Nusantara</h2>
+        <address>Midplaza 1, 7th Floor<br>Jalan Jenderal Sudirman Kav. 10-11<br>Jakarta 10220</address>
+      </section>
+      <section class="footer-column" aria-labelledby="footer-support"><h2 id="footer-support">Support</h2><a href="#query-policy">Query policy</a><a href="input.html">Data entry</a></section>
+      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">SQL Console</a><a href="input.html">Employee Form</a></section>
+      <section class="footer-column" aria-labelledby="footer-insights"><h2 id="footer-insights">Insights</h2><a href="index.html#schema-title">Schema overview</a><a href="query.html">SQL examples</a></section>
+      <section class="footer-column" aria-labelledby="footer-legal"><h2 id="footer-legal">Legal</h2><span>Testing environment</span><span>No production data</span></section>
+    </div>
+    <div class="shell footer-meta"><span>Employee Database Lab</span><span>Read-only SQL console</span></div>
+  </footer>
+</body>
+</html>
