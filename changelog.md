@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-12
+
+- Converted the static deployment artifact into a same-origin Node.js HTTP service.
+- Added PostgreSQL 15 summary, metadata, guarded read-only query, persistent job, and readiness APIs.
+- Added a durable NATS JetStream employee worker with publish acknowledgements and idempotent processing.
+- Added the employee job migration, production Dockerfile, dependency lockfile, and automated tests.
+
 ## 2026-08-11
 
 - Added backend-only `DATABASE_URL` and `NATS_URL` environment variable examples for PostgreSQL 15 NEO DB and NATS JetStream.

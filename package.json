@@ -1,0 +1,21 @@
+{
+  "name": "fe-neo-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NEO App HTTP service for PostgreSQL 15 and NATS JetStream",
+  "type": "module",
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "check": "node --check server/index.js && node --check server/http.js && node --check server/database.js && node --check server/queue.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@nats-io/jetstream": "3.4.0",
+    "@nats-io/transport-node": "3.4.0",
+    "pg": "8.23.0"
+  }
+}

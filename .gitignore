@@ -8,3 +8,8 @@
 .idea/
 .DS_Store
 Thumbs.db
+
+# Node.js runtime output.
+node_modules/
+coverage/
+*.log
