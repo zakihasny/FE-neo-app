@@ -35,7 +35,7 @@ Acknowledgement: explicit
 ```
 
 - Endpoint PostgreSQL dan NATS dapat dijangkau dari pod HTTP service.
-- TLS CA yang dibutuhkan sudah tersedia dalam trust store atau mounted secret container.
+- TLS CA PostgreSQL yang dibutuhkan sudah tersedia dalam trust store atau mounted secret container.
 
 ## Environment
 
@@ -43,8 +43,10 @@ Hanya dua service binding yang wajib:
 
 ```dotenv
 DATABASE_URL=postgresql://username:password@neo-db-host:5432/app?sslmode=verify-full
-NATS_URL=tls://username:password@neo-queue-host:4222
+NATS_URL=nats://token@message-neo-app:4222
 ```
+
+Untuk NEO Queue dengan token authentication, token ditempatkan sebelum `@`. Service memisahkan token dari endpoint dan meneruskannya melalui opsi autentikasi NATS; credential tidak dicetak ke log.
 
 `PORT` bersifat opsional dan default ke `8080`. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
 
@@ -94,7 +96,7 @@ Buka `http://127.0.0.1:8080/`.
 Build image:
 
 ```bash
-docker build -t fe-neo-app:1.1.0 .
+docker build -t fe-neo-app:1.1.1 .
 ```
 
 Jalankan menggunakan runtime secrets:
@@ -105,7 +107,7 @@ docker run --rm \
   -p 8080:8080 \
   -e DATABASE_URL="$DATABASE_URL" \
   -e NATS_URL="$NATS_URL" \
-  fe-neo-app:1.1.0
+  fe-neo-app:1.1.1
 ```
 
 Verifikasi:

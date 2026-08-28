@@ -19,9 +19,83 @@ function safeMessage(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
+function decodeCredential(value) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    throw new Error('NATS_URL memiliki credential encoding yang tidak valid.')
+  }
+}
+
+function sameCredentials(left, right) {
+  return left.token === right.token && left.user === right.user && left.pass === right.pass
+}
+
+export function natsConnectionOptions(natsUrl) {
+  const values = String(natsUrl || '').split(',').map((value) => value.trim()).filter(Boolean)
+  if (values.length === 0) throw new Error('NATS_URL wajib berisi minimal satu endpoint.')
+
+  const servers = []
+  let credentials = null
+  let tlsEnabled = null
+
+  for (const value of values) {
+    let parsed
+    try {
+      parsed = new URL(value)
+    } catch {
+      throw new Error('NATS_URL harus menggunakan format nats://token@host:port.')
+    }
+
+    if (!['nats:', 'tls:'].includes(parsed.protocol)) {
+      throw new Error('NATS_URL hanya mendukung protocol nats:// atau tls://.')
+    }
+    if (!parsed.hostname) throw new Error('NATS_URL wajib memiliki hostname.')
+
+    const endpointUsesTls = parsed.protocol === 'tls:'
+    if (tlsEnabled !== null && tlsEnabled !== endpointUsesTls) {
+      throw new Error('Semua endpoint NATS_URL harus menggunakan protocol yang sama.')
+    }
+    tlsEnabled = endpointUsesTls
+
+    const username = parsed.username ? decodeCredential(parsed.username) : ''
+    const password = parsed.password ? decodeCredential(parsed.password) : ''
+    if (password && !username) {
+      throw new Error('NATS_URL dengan password wajib memiliki username.')
+    }
+    const endpointCredentials = password
+      ? { user: username, pass: password, token: undefined }
+      : username
+        ? { token: username, user: undefined, pass: undefined }
+        : { token: undefined, user: undefined, pass: undefined }
+
+    const hasCredentials = Boolean(endpointCredentials.token || endpointCredentials.user)
+    if (hasCredentials) {
+      if (credentials && !sameCredentials(credentials, endpointCredentials)) {
+        throw new Error('Semua endpoint NATS_URL harus menggunakan credential yang sama.')
+      }
+      credentials = endpointCredentials
+    }
+
+    const hostname = parsed.hostname.includes(':') && !parsed.hostname.startsWith('[')
+      ? `[${parsed.hostname}]`
+      : parsed.hostname
+    servers.push(`${hostname}:${parsed.port || '4222'}`)
+  }
+
+  const options = { servers }
+  if (credentials?.token) options.token = credentials.token
+  if (credentials?.user) {
+    options.user = credentials.user
+    options.pass = credentials.pass
+  }
+  if (tlsEnabled) options.tls = {}
+  return options
+}
+
 export class QueueService {
   constructor(natsUrl, database) {
-    this.servers = natsUrl.split(',').map((value) => value.trim()).filter(Boolean)
+    this.connectionOptions = natsConnectionOptions(natsUrl)
     this.database = database
     this.connection = null
     this.client = null
@@ -78,7 +152,7 @@ export class QueueService {
 
   async #runConnectionSession() {
     const connection = await connect({
-      servers: this.servers,
+      ...this.connectionOptions,
       name: 'fe-neo-app-http-service',
       timeout: 5000,
       maxReconnectAttempts: -1,

@@ -2,6 +2,8 @@
 
 ## 2026-08-28
 
+- Fixed NEO Queue token authentication for `nats://token@host:port` service URLs.
+- Added credential-safe NATS URL parsing tests for token, user/password, TLS, and multiple endpoints.
 - Added automatic PostgreSQL 15 startup migrations for schema, views, and employee job tracking.
 - Added bounded database connection retry and a PostgreSQL advisory lock for safe multi-replica startup.
 - Added optional idempotent sample seeding through `SEED_SAMPLE_DATA=true`.
