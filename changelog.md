@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-28
+
+- Added automatic PostgreSQL 15 startup migrations for schema, views, and employee job tracking.
+- Added bounded database connection retry and a PostgreSQL advisory lock for safe multi-replica startup.
+- Added optional idempotent sample seeding through `SEED_SAMPLE_DATA=true`.
+- Added a standalone migration command and migration lifecycle tests.
+
 ## 2026-08-12
 
 - Converted the static deployment artifact into a same-origin Node.js HTTP service.

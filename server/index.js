@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { DatabaseService } from './database.js'
 import { createHttpServer } from './http.js'
+import { environmentFlag, runMigrations } from './migrate.js'
 import { QueueService } from './queue.js'
 
 function requireEnvironment(name) {
@@ -15,6 +16,11 @@ const databaseUrl = requireEnvironment('DATABASE_URL')
 const natsUrl = requireEnvironment('NATS_URL')
 const port = Number(process.env.PORT || 8080)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT tidak valid.')
+
+await runMigrations(databaseUrl, {
+  enabled: environmentFlag(process.env.RUN_DB_MIGRATIONS, true),
+  seedSampleData: environmentFlag(process.env.SEED_SAMPLE_DATA, false)
+})
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const database = new DatabaseService(databaseUrl)

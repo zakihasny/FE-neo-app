@@ -23,8 +23,8 @@ HTTP service melayani halaman dan API dari origin yang sama:
 
 ## Requirement
 
-- NEO DB PostgreSQL 15 dengan schema dari `DB-neo-app.zip`.
-- Migration `migrations/003_employee_jobs.sql` sudah dijalankan.
+- NEO DB PostgreSQL 15 yang dapat dijangkau dari HTTP service.
+- Credential pada `DATABASE_URL` memiliki izin membuat schema, table, view, index, dan constraint saat migration pertama. Setelah bootstrap, gunakan credential dengan privilege yang lebih sempit bila lifecycle NEO App memungkinkan rotasi binding.
 - NEO Queue JetStream dengan resource berikut:
 
 ```text
@@ -48,16 +48,34 @@ NATS_URL=tls://username:password@neo-queue-host:4222
 
 `PORT` bersifat opsional dan default ke `8080`. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
 
+Startup migration aktif secara default. Dua kontrol non-secret berikut bersifat opsional:
+
+```dotenv
+RUN_DB_MIGRATIONS=true
+SEED_SAMPLE_DATA=false
+```
+
+Jangan aktifkan sample seed pada production database.
+
 ## Migration
 
-Jalankan menggunakan credential pemilik schema `employee_app`:
+Sebelum membuka HTTP port, container menunggu NEO DB, mengambil PostgreSQL advisory lock, dan menjalankan migration yang belum tercatat pada `employee_app.schema_migrations`:
+
+```text
+001_schema.sql
+002_views.sql
+003_employee_jobs.sql
+```
+
+Lock mencegah beberapa replica menjalankan migration bersamaan. Jika NEO DB belum dapat dijangkau, startup mencoba kembali maksimal 30 kali dengan interval dua detik. Service gagal start bila koneksi atau migration tetap gagal.
+
+Migration juga dapat dijalankan sebagai command terpisah:
 
 ```bash
-psql "$DATABASE_URL" \
-  -X \
-  -v ON_ERROR_STOP=1 \
-  -f migrations/003_employee_jobs.sql
+pnpm migrate
 ```
+
+Set `RUN_DB_MIGRATIONS=false` hanya jika migration dikelola oleh pipeline terpisah.
 
 ## Local Development
 
@@ -76,7 +94,7 @@ Buka `http://127.0.0.1:8080/`.
 Build image:
 
 ```bash
-docker build -t fe-neo-app:1.0.0 .
+docker build -t fe-neo-app:1.1.0 .
 ```
 
 Jalankan menggunakan runtime secrets:
@@ -87,7 +105,7 @@ docker run --rm \
   -p 8080:8080 \
   -e DATABASE_URL="$DATABASE_URL" \
   -e NATS_URL="$NATS_URL" \
-  fe-neo-app:1.0.0
+  fe-neo-app:1.1.0
 ```
 
 Verifikasi:

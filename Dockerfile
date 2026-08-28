@@ -24,6 +24,7 @@ COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json pnpm-lock.yaml ./
 COPY --chown=node:node server ./server
 COPY --chown=node:node migrations ./migrations
+COPY --chown=node:node seeds ./seeds
 COPY --chown=node:node assets ./assets
 COPY --chown=node:node index.html input.html query.html ./
 
@@ -31,7 +32,7 @@ USER node
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=240s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/health/live').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
 
 CMD ["node", "server/index.js"]
