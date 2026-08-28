@@ -25,14 +25,18 @@ HTTP service melayani halaman dan API dari origin yang sama:
 
 - NEO DB PostgreSQL 15 yang dapat dijangkau dari HTTP service.
 - Credential pada `DATABASE_URL` memiliki izin membuat schema, table, view, index, dan constraint saat migration pertama. Setelah bootstrap, gunakan credential dengan privilege yang lebih sempit bila lifecycle NEO App memungkinkan rotasi binding.
-- NEO Queue JetStream dengan resource berikut:
+- NEO Queue dengan JetStream aktif. Saat startup, service otomatis membuat resource berikut bila belum ada:
 
 ```text
 Stream: NEO_APP_COMMANDS
 Subject: employee.create.v1
 Durable pull consumer: neo-app-employee-writer-v1
 Acknowledgement: explicit
+Retention: work queue
+Storage: file
 ```
+
+Bootstrap Queue bersifat idempotent dan aman untuk beberapa replica yang startup bersamaan. Credential `NATS_URL` harus memiliki izin membaca dan membuat stream/consumer. Resource yang sudah ada tidak diubah; startup gagal dengan pesan yang jelas bila namanya sama tetapi konfigurasinya tidak kompatibel.
 
 - Endpoint PostgreSQL dan NATS dapat dijangkau dari pod HTTP service.
 - TLS CA PostgreSQL yang dibutuhkan sudah tersedia dalam trust store atau mounted secret container.
@@ -46,7 +50,7 @@ DATABASE_URL=postgresql://username:password@neo-db-host:5432/app?sslmode=verify-
 NATS_URL=nats://token@message-neo-app:4222
 ```
 
-Untuk NEO Queue dengan token authentication, token ditempatkan sebelum `@`. Service memisahkan token dari endpoint dan meneruskannya melalui opsi autentikasi NATS; credential tidak dicetak ke log.
+Untuk NEO Queue dengan token authentication, token ditempatkan sebelum `@`. Format `nats://username:password@host:port` dari service binding NEO App juga didukung. Service memisahkan credential dari endpoint dan meneruskannya melalui opsi autentikasi NATS; credential tidak dicetak ke log.
 
 `PORT` bersifat opsional dan default ke `8080`. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
 
@@ -96,7 +100,7 @@ Buka `http://127.0.0.1:8080/`.
 Build image:
 
 ```bash
-docker build -t fe-neo-app:1.1.1 .
+docker build -t fe-neo-app:1.2.0 .
 ```
 
 Jalankan menggunakan runtime secrets:
@@ -107,7 +111,7 @@ docker run --rm \
   -p 8080:8080 \
   -e DATABASE_URL="$DATABASE_URL" \
   -e NATS_URL="$NATS_URL" \
-  fe-neo-app:1.1.1
+  fe-neo-app:1.2.0
 ```
 
 Verifikasi:

@@ -2,6 +2,9 @@
 
 ## 2026-08-28
 
+- Added idempotent NATS JetStream stream and durable consumer bootstrap during service startup.
+- Added compatibility validation and concurrent-replica handling for Queue resources.
+- Added unit tests for Queue resource creation, reuse, startup races, and error propagation.
 - Fixed NEO Queue token authentication for `nats://token@host:port` service URLs.
 - Added credential-safe NATS URL parsing tests for token, user/password, TLS, and multiple endpoints.
 - Added automatic PostgreSQL 15 startup migrations for schema, views, and employee job tracking.

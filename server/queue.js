@@ -1,5 +1,12 @@
 import { connect } from '@nats-io/transport-node'
-import { jetstream } from '@nats-io/jetstream'
+import {
+  AckPolicy,
+  JetStreamApiCodes,
+  RetentionPolicy,
+  StorageType,
+  jetstream,
+  jetstreamManager
+} from '@nats-io/jetstream'
 
 import { PermanentJobError } from './errors.js'
 import { validateEmployeeCommand } from './validation.js'
@@ -7,6 +14,19 @@ import { validateEmployeeCommand } from './validation.js'
 export const EMPLOYEE_STREAM = 'NEO_APP_COMMANDS'
 export const EMPLOYEE_SUBJECT = 'employee.create.v1'
 export const EMPLOYEE_CONSUMER = 'neo-app-employee-writer-v1'
+
+export const EMPLOYEE_STREAM_CONFIG = Object.freeze({
+  name: EMPLOYEE_STREAM,
+  subjects: Object.freeze([EMPLOYEE_SUBJECT]),
+  retention: RetentionPolicy.Workqueue,
+  storage: StorageType.File
+})
+
+export const EMPLOYEE_CONSUMER_CONFIG = Object.freeze({
+  durable_name: EMPLOYEE_CONSUMER,
+  ack_policy: AckPolicy.Explicit,
+  filter_subject: EMPLOYEE_SUBJECT
+})
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -29,6 +49,81 @@ function decodeCredential(value) {
 
 function sameCredentials(left, right) {
   return left.token === right.token && left.user === right.user && left.pass === right.pass
+}
+
+function hasJetStreamApiCode(error, code) {
+  return Boolean(error && typeof error === 'object' && Number(error.code) === code)
+}
+
+async function getOrCreateResource({ info, add, notFoundCode }) {
+  try {
+    return { info: await info(), created: false }
+  } catch (error) {
+    if (!hasJetStreamApiCode(error, notFoundCode)) throw error
+  }
+
+  try {
+    return { info: await add(), created: true }
+  } catch (addError) {
+    // Another replica may create the same resource between info() and add().
+    try {
+      return { info: await info(), created: false }
+    } catch (infoError) {
+      if (hasJetStreamApiCode(infoError, notFoundCode)) throw addError
+      throw infoError
+    }
+  }
+}
+
+function assertStreamCompatible(streamInfo) {
+  const config = streamInfo?.config
+  const subjects = Array.isArray(config?.subjects) ? config.subjects : []
+  if (
+    !subjects.includes(EMPLOYEE_SUBJECT) ||
+    config?.retention !== RetentionPolicy.Workqueue ||
+    config?.storage !== StorageType.File
+  ) {
+    throw new Error(
+      `JetStream stream ${EMPLOYEE_STREAM} sudah ada tetapi konfigurasinya tidak kompatibel.`
+    )
+  }
+}
+
+function assertConsumerCompatible(consumerInfo) {
+  const config = consumerInfo?.config
+  if (
+    config?.durable_name !== EMPLOYEE_CONSUMER ||
+    config?.ack_policy !== AckPolicy.Explicit ||
+    config?.filter_subject !== EMPLOYEE_SUBJECT
+  ) {
+    throw new Error(
+      `JetStream consumer ${EMPLOYEE_CONSUMER} sudah ada tetapi konfigurasinya tidak kompatibel.`
+    )
+  }
+}
+
+export async function ensureEmployeeQueueResources(manager) {
+  const stream = await getOrCreateResource({
+    info: () => manager.streams.info(EMPLOYEE_STREAM),
+    add: () => manager.streams.add({
+      ...EMPLOYEE_STREAM_CONFIG,
+      subjects: [...EMPLOYEE_STREAM_CONFIG.subjects]
+    }),
+    notFoundCode: JetStreamApiCodes.StreamNotFound
+  })
+  assertStreamCompatible(stream.info)
+
+  const consumer = await getOrCreateResource({
+    info: () => manager.consumers.info(EMPLOYEE_STREAM, EMPLOYEE_CONSUMER),
+    add: () => manager.consumers.add(EMPLOYEE_STREAM, { ...EMPLOYEE_CONSUMER_CONFIG }),
+    notFoundCode: JetStreamApiCodes.ConsumerNotFound
+  })
+  assertConsumerCompatible(consumer.info)
+
+  return {
+    streamCreated: stream.created,
+    consumerCreated: consumer.created
+  }
 }
 
 export function natsConnectionOptions(natsUrl) {
@@ -159,6 +254,8 @@ export class QueueService {
       reconnectTimeWait: 2000
     })
     try {
+      const manager = await jetstreamManager(connection, { timeout: 5000 })
+      const resources = await ensureEmployeeQueueResources(manager)
       const client = jetstream(connection, { timeout: 5000 })
       const consumer = await client.consumers.get(EMPLOYEE_STREAM, EMPLOYEE_CONSUMER)
       const messages = await consumer.consume({ max_messages: 1 })
@@ -173,7 +270,9 @@ export class QueueService {
         event: 'nats_worker_ready',
         stream: EMPLOYEE_STREAM,
         subject: EMPLOYEE_SUBJECT,
-        consumer: EMPLOYEE_CONSUMER
+        consumer: EMPLOYEE_CONSUMER,
+        streamCreated: resources.streamCreated,
+        consumerCreated: resources.consumerCreated
       }))
 
       const worker = this.#consume(messages)

@@ -1,7 +1,26 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { natsConnectionOptions } from '../server/queue.js'
+import {
+  EMPLOYEE_CONSUMER,
+  EMPLOYEE_CONSUMER_CONFIG,
+  EMPLOYEE_STREAM,
+  EMPLOYEE_STREAM_CONFIG,
+  ensureEmployeeQueueResources,
+  natsConnectionOptions
+} from '../server/queue.js'
+
+function jetStreamError(code, message = 'JetStream error') {
+  return Object.assign(new Error(message), { code })
+}
+
+function compatibleStreamInfo() {
+  return { config: { ...EMPLOYEE_STREAM_CONFIG, subjects: [...EMPLOYEE_STREAM_CONFIG.subjects] } }
+}
+
+function compatibleConsumerInfo() {
+  return { config: { ...EMPLOYEE_CONSUMER_CONFIG } }
+}
 
 test('natsConnectionOptions extracts a NEO Queue token from NATS_URL', () => {
   assert.deepEqual(
@@ -71,4 +90,145 @@ test('natsConnectionOptions rejects unsafe or ambiguous endpoint configuration',
     ),
     /protocol yang sama/
   )
+})
+
+test('ensureEmployeeQueueResources creates a missing stream and consumer', async () => {
+  const calls = []
+  let streamInfo = null
+  let consumerInfo = null
+  const manager = {
+    streams: {
+      async info(name) {
+        calls.push(['stream.info', name])
+        if (!streamInfo) throw jetStreamError(10059, 'stream not found')
+        return streamInfo
+      },
+      async add(config) {
+        calls.push(['stream.add', config])
+        streamInfo = compatibleStreamInfo()
+        return streamInfo
+      }
+    },
+    consumers: {
+      async info(stream, consumer) {
+        calls.push(['consumer.info', stream, consumer])
+        if (!consumerInfo) throw jetStreamError(10014, 'consumer not found')
+        return consumerInfo
+      },
+      async add(stream, config) {
+        calls.push(['consumer.add', stream, config])
+        consumerInfo = compatibleConsumerInfo()
+        return consumerInfo
+      }
+    }
+  }
+
+  assert.deepEqual(await ensureEmployeeQueueResources(manager), {
+    streamCreated: true,
+    consumerCreated: true
+  })
+  assert.deepEqual(calls, [
+    ['stream.info', EMPLOYEE_STREAM],
+    ['stream.add', EMPLOYEE_STREAM_CONFIG],
+    ['consumer.info', EMPLOYEE_STREAM, EMPLOYEE_CONSUMER],
+    ['consumer.add', EMPLOYEE_STREAM, EMPLOYEE_CONSUMER_CONFIG]
+  ])
+})
+
+test('ensureEmployeeQueueResources leaves compatible resources unchanged', async () => {
+  const manager = {
+    streams: {
+      info: async () => compatibleStreamInfo(),
+      add: async () => assert.fail('stream should not be created')
+    },
+    consumers: {
+      info: async () => compatibleConsumerInfo(),
+      add: async () => assert.fail('consumer should not be created')
+    }
+  }
+
+  assert.deepEqual(await ensureEmployeeQueueResources(manager), {
+    streamCreated: false,
+    consumerCreated: false
+  })
+})
+
+test('ensureEmployeeQueueResources tolerates a concurrent stream creation', async () => {
+  let infoCalls = 0
+  const manager = {
+    streams: {
+      async info() {
+        infoCalls += 1
+        if (infoCalls === 1) throw jetStreamError(10059, 'stream not found')
+        return compatibleStreamInfo()
+      },
+      async add() {
+        throw jetStreamError(10058, 'stream name already in use')
+      }
+    },
+    consumers: {
+      info: async () => compatibleConsumerInfo(),
+      add: async () => assert.fail('consumer should not be created')
+    }
+  }
+
+  assert.deepEqual(await ensureEmployeeQueueResources(manager), {
+    streamCreated: false,
+    consumerCreated: false
+  })
+  assert.equal(infoCalls, 2)
+})
+
+test('ensureEmployeeQueueResources tolerates a concurrent consumer creation', async () => {
+  let infoCalls = 0
+  const manager = {
+    streams: {
+      info: async () => compatibleStreamInfo(),
+      add: async () => assert.fail('stream should not be created')
+    },
+    consumers: {
+      async info() {
+        infoCalls += 1
+        if (infoCalls === 1) throw jetStreamError(10014, 'consumer not found')
+        return compatibleConsumerInfo()
+      },
+      async add() {
+        throw jetStreamError(10013, 'consumer name already in use')
+      }
+    }
+  }
+
+  assert.deepEqual(await ensureEmployeeQueueResources(manager), {
+    streamCreated: false,
+    consumerCreated: false
+  })
+  assert.equal(infoCalls, 2)
+})
+
+test('ensureEmployeeQueueResources rejects incompatible or unauthorized resources', async () => {
+  const incompatibleManager = {
+    streams: {
+      info: async () => ({
+        config: {
+          ...EMPLOYEE_STREAM_CONFIG,
+          subjects: ['different.subject']
+        }
+      })
+    },
+    consumers: {}
+  }
+
+  await assert.rejects(
+    ensureEmployeeQueueResources(incompatibleManager),
+    /stream NEO_APP_COMMANDS.*tidak kompatibel/
+  )
+
+  const unauthorized = jetStreamError(10005, 'not authorized')
+  const unauthorizedManager = {
+    streams: {
+      info: async () => { throw unauthorized }
+    },
+    consumers: {}
+  }
+  await assert.rejects(ensureEmployeeQueueResources(unauthorizedManager), unauthorized)
 })
