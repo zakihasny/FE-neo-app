@@ -2,10 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  DEVICE_CONSUMER,
+  DEVICE_CONSUMER_CONFIG,
   EMPLOYEE_CONSUMER,
   EMPLOYEE_CONSUMER_CONFIG,
   EMPLOYEE_STREAM,
   EMPLOYEE_STREAM_CONFIG,
+  QUEUE_COMMANDS,
+  SITE_CONSUMER,
+  SITE_CONSUMER_CONFIG,
   ensureEmployeeQueueResources,
   natsConnectionOptions
 } from '../server/queue.js'
@@ -14,12 +19,31 @@ function jetStreamError(code, message = 'JetStream error') {
   return Object.assign(new Error(message), { code })
 }
 
-function compatibleStreamInfo() {
-  return { config: { ...EMPLOYEE_STREAM_CONFIG, subjects: [...EMPLOYEE_STREAM_CONFIG.subjects] } }
+function compatibleStreamInfo(subjects = EMPLOYEE_STREAM_CONFIG.subjects) {
+  return {
+    config: {
+      ...EMPLOYEE_STREAM_CONFIG,
+      subjects: [...subjects]
+    }
+  }
 }
 
-function compatibleConsumerInfo() {
-  return { config: { ...EMPLOYEE_CONSUMER_CONFIG } }
+const consumerConfigByName = new Map([
+  [EMPLOYEE_CONSUMER, EMPLOYEE_CONSUMER_CONFIG],
+  [SITE_CONSUMER, SITE_CONSUMER_CONFIG],
+  [DEVICE_CONSUMER, DEVICE_CONSUMER_CONFIG]
+])
+
+function compatibleConsumerInfo(name) {
+  return { config: { ...consumerConfigByName.get(name) } }
+}
+
+function existingConsumersApi(overrides = {}) {
+  return {
+    info: async (_stream, name) => compatibleConsumerInfo(name),
+    add: async () => assert.fail('consumer should not be created'),
+    ...overrides
+  }
 }
 
 test('natsConnectionOptions extracts a NEO Queue token from NATS_URL', () => {
@@ -92,68 +116,93 @@ test('natsConnectionOptions rejects unsafe or ambiguous endpoint configuration',
   )
 })
 
-test('ensureEmployeeQueueResources creates a missing stream and consumer', async () => {
-  const calls = []
+test('ensureEmployeeQueueResources creates the stream and all command consumers', async () => {
   let streamInfo = null
-  let consumerInfo = null
+  const consumers = new Map()
+  const addedConsumers = []
   const manager = {
     streams: {
-      async info(name) {
-        calls.push(['stream.info', name])
+      async info() {
         if (!streamInfo) throw jetStreamError(10059, 'stream not found')
         return streamInfo
       },
       async add(config) {
-        calls.push(['stream.add', config])
-        streamInfo = compatibleStreamInfo()
+        streamInfo = compatibleStreamInfo(config.subjects)
         return streamInfo
       }
     },
     consumers: {
-      async info(stream, consumer) {
-        calls.push(['consumer.info', stream, consumer])
-        if (!consumerInfo) throw jetStreamError(10014, 'consumer not found')
-        return consumerInfo
+      async info(_stream, name) {
+        if (!consumers.has(name)) throw jetStreamError(10014, 'consumer not found')
+        return consumers.get(name)
       },
       async add(stream, config) {
-        calls.push(['consumer.add', stream, config])
-        consumerInfo = compatibleConsumerInfo()
-        return consumerInfo
+        assert.equal(stream, EMPLOYEE_STREAM)
+        const info = { config: { ...config } }
+        consumers.set(config.durable_name, info)
+        addedConsumers.push(config.durable_name)
+        return info
       }
     }
   }
 
   assert.deepEqual(await ensureEmployeeQueueResources(manager), {
     streamCreated: true,
-    consumerCreated: true
+    streamUpdated: false,
+    consumerCreated: {
+      employee: true,
+      site: true,
+      device: true
+    }
   })
-  assert.deepEqual(calls, [
-    ['stream.info', EMPLOYEE_STREAM],
-    ['stream.add', EMPLOYEE_STREAM_CONFIG],
-    ['consumer.info', EMPLOYEE_STREAM, EMPLOYEE_CONSUMER],
-    ['consumer.add', EMPLOYEE_STREAM, EMPLOYEE_CONSUMER_CONFIG]
-  ])
+  assert.deepEqual(addedConsumers, QUEUE_COMMANDS.map((command) => command.consumer))
 })
 
 test('ensureEmployeeQueueResources leaves compatible resources unchanged', async () => {
   const manager = {
     streams: {
       info: async () => compatibleStreamInfo(),
-      add: async () => assert.fail('stream should not be created')
+      add: async () => assert.fail('stream should not be created'),
+      update: async () => assert.fail('stream should not be updated')
     },
-    consumers: {
-      info: async () => compatibleConsumerInfo(),
-      add: async () => assert.fail('consumer should not be created')
-    }
+    consumers: existingConsumersApi()
   }
 
   assert.deepEqual(await ensureEmployeeQueueResources(manager), {
     streamCreated: false,
-    consumerCreated: false
+    streamUpdated: false,
+    consumerCreated: {
+      employee: false,
+      site: false,
+      device: false
+    }
   })
 })
 
-test('ensureEmployeeQueueResources tolerates a concurrent stream creation', async () => {
+test('ensureEmployeeQueueResources upgrades a legacy employee-only stream', async () => {
+  let streamInfo = compatibleStreamInfo(['employee.create.v1'])
+  let updatedSubjects
+  const manager = {
+    streams: {
+      info: async () => streamInfo,
+      add: async () => assert.fail('stream should not be created'),
+      async update(name, config) {
+        assert.equal(name, EMPLOYEE_STREAM)
+        updatedSubjects = config.subjects
+        streamInfo = compatibleStreamInfo(config.subjects)
+        return streamInfo
+      }
+    },
+    consumers: existingConsumersApi()
+  }
+
+  const result = await ensureEmployeeQueueResources(manager)
+  assert.equal(result.streamCreated, false)
+  assert.equal(result.streamUpdated, true)
+  assert.deepEqual(updatedSubjects, EMPLOYEE_STREAM_CONFIG.subjects)
+})
+
+test('ensureEmployeeQueueResources tolerates concurrent stream creation', async () => {
   let infoCalls = 0
   const manager = {
     streams: {
@@ -166,43 +215,38 @@ test('ensureEmployeeQueueResources tolerates a concurrent stream creation', asyn
         throw jetStreamError(10058, 'stream name already in use')
       }
     },
-    consumers: {
-      info: async () => compatibleConsumerInfo(),
-      add: async () => assert.fail('consumer should not be created')
-    }
+    consumers: existingConsumersApi()
   }
 
-  assert.deepEqual(await ensureEmployeeQueueResources(manager), {
-    streamCreated: false,
-    consumerCreated: false
-  })
+  const result = await ensureEmployeeQueueResources(manager)
+  assert.equal(result.streamCreated, false)
   assert.equal(infoCalls, 2)
 })
 
-test('ensureEmployeeQueueResources tolerates a concurrent consumer creation', async () => {
-  let infoCalls = 0
+test('ensureEmployeeQueueResources tolerates concurrent consumer creation', async () => {
+  let siteInfoCalls = 0
   const manager = {
     streams: {
       info: async () => compatibleStreamInfo(),
       add: async () => assert.fail('stream should not be created')
     },
-    consumers: {
-      async info() {
-        infoCalls += 1
-        if (infoCalls === 1) throw jetStreamError(10014, 'consumer not found')
-        return compatibleConsumerInfo()
+    consumers: existingConsumersApi({
+      async info(_stream, name) {
+        if (name !== SITE_CONSUMER) return compatibleConsumerInfo(name)
+        siteInfoCalls += 1
+        if (siteInfoCalls === 1) throw jetStreamError(10014, 'consumer not found')
+        return compatibleConsumerInfo(name)
       },
-      async add() {
+      async add(_stream, config) {
+        assert.equal(config.durable_name, SITE_CONSUMER)
         throw jetStreamError(10013, 'consumer name already in use')
       }
-    }
+    })
   }
 
-  assert.deepEqual(await ensureEmployeeQueueResources(manager), {
-    streamCreated: false,
-    consumerCreated: false
-  })
-  assert.equal(infoCalls, 2)
+  const result = await ensureEmployeeQueueResources(manager)
+  assert.equal(result.consumerCreated.site, false)
+  assert.equal(siteInfoCalls, 2)
 })
 
 test('ensureEmployeeQueueResources rejects incompatible or unauthorized resources', async () => {
@@ -211,7 +255,8 @@ test('ensureEmployeeQueueResources rejects incompatible or unauthorized resource
       info: async () => ({
         config: {
           ...EMPLOYEE_STREAM_CONFIG,
-          subjects: ['different.subject']
+          retention: 'limits',
+          subjects: [...EMPLOYEE_STREAM_CONFIG.subjects]
         }
       })
     },

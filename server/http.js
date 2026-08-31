@@ -4,7 +4,11 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { HttpError } from './errors.js'
-import { validateEmployeeInput } from './validation.js'
+import {
+  validateDeviceInput,
+  validateEmployeeInput,
+  validateSiteInput
+} from './validation.js'
 
 const MIME_TYPES = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -123,6 +127,86 @@ function logRequestError(requestId, pathname, error) {
   }))
 }
 
+const createResourceRoutes = new Map([
+  ['/api/employees', {
+    resourceType: 'employee',
+    label: 'Pegawai',
+    validate: validateEmployeeInput
+  }],
+  ['/api/sites', {
+    resourceType: 'site',
+    label: 'Site',
+    validate: validateSiteInput
+  }],
+  ['/api/devices', {
+    resourceType: 'device',
+    label: 'Perangkat',
+    validate: validateDeviceInput
+  }]
+])
+
+async function handleCreateResource({
+  request,
+  response,
+  requestId,
+  database,
+  queue,
+  route
+}) {
+  const input = route.validate(await readJson(request))
+  const command = { jobId: randomUUID(), resourceType: route.resourceType, ...input }
+  const job = await database.createJob(command)
+
+  if (!job.isNew && job.resourceType !== route.resourceType) {
+    throw new HttpError(409, 'Idempotency key sudah digunakan untuk tipe data lain.')
+  }
+
+  if (job.isNew) {
+    if (!queue.isReady()) {
+      await database.markJobFailed(command.jobId, 'NEO Queue belum siap.').catch(() => {})
+      throw new HttpError(503, 'NEO Queue belum siap.')
+    }
+
+    let acknowledgement
+    try {
+      acknowledgement = await queue.publishCommand(command)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Message tidak dapat dikirim.'
+      await database.markJobFailed(command.jobId, message).catch(() => {})
+      throw new HttpError(503, 'NEO Queue tidak dapat menerima message saat ini.')
+    }
+
+    database.markJobPublished(command.jobId, acknowledgement).catch((error) => {
+      console.error(JSON.stringify({
+        level: 'error',
+        event: 'job_publish_metadata_error',
+        requestId,
+        jobId: command.jobId,
+        resourceType: route.resourceType,
+        message: error instanceof Error ? error.message : String(error)
+      }))
+    })
+  }
+
+  sendJson(request, response, 202, {
+    jobId: job.jobId,
+    status: job.status,
+    resourceType: job.resourceType,
+    resourceId: job.resourceId,
+    message: job.isNew
+      ? `Permintaan tambah ${route.label.toLowerCase()} sudah diterima NEO Queue.`
+      : 'Permintaan dengan idempotency key tersebut sudah tercatat.'
+  })
+}
+
+function jobStatusMessage(job) {
+  const labels = { employee: 'Pegawai', site: 'Site', device: 'Perangkat' }
+  const label = labels[job.resourceType] || 'Data'
+  if (job.status === 'completed') return `${label} berhasil ditambahkan.`
+  if (job.status === 'failed') return job.message || `${label} gagal ditambahkan.`
+  return 'Permintaan sedang diproses.'
+}
+
 export function createHttpServer({ database, queue, publicRoot }) {
   return createServer(async (request, response) => {
     const requestId = String(request.headers['x-request-id'] || randomUUID()).slice(0, 128)
@@ -181,43 +265,15 @@ export function createHttpServer({ database, queue, publicRoot }) {
         return
       }
 
-      if (pathname === '/api/employees' && request.method === 'POST') {
-        const input = validateEmployeeInput(await readJson(request))
-        const command = { jobId: randomUUID(), ...input }
-        const job = await database.createJob(command)
-
-        if (job.isNew) {
-          if (!queue.isReady()) {
-            await database.markJobFailed(command.jobId, 'NEO Queue belum siap.').catch(() => {})
-            throw new HttpError(503, 'NEO Queue belum siap.')
-          }
-
-          let acknowledgement
-          try {
-            acknowledgement = await queue.publishEmployee(command)
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Message tidak dapat dikirim.'
-            await database.markJobFailed(command.jobId, message).catch(() => {})
-            throw new HttpError(503, 'NEO Queue tidak dapat menerima message saat ini.')
-          }
-
-          database.markJobPublished(command.jobId, acknowledgement).catch((error) => {
-            console.error(JSON.stringify({
-              level: 'error',
-              event: 'job_publish_metadata_error',
-              requestId,
-              jobId: command.jobId,
-              message: error instanceof Error ? error.message : String(error)
-            }))
-          })
-        }
-
-        sendJson(request, response, 202, {
-          jobId: job.jobId,
-          status: job.status,
-          message: job.isNew
-            ? 'Permintaan tambah pegawai sudah diterima NEO Queue.'
-            : 'Permintaan dengan idempotency key tersebut sudah tercatat.'
+      const createRoute = createResourceRoutes.get(pathname)
+      if (createRoute && request.method === 'POST') {
+        await handleCreateResource({
+          request,
+          response,
+          requestId,
+          database,
+          queue,
+          route: createRoute
         })
         return
       }
@@ -230,11 +286,7 @@ export function createHttpServer({ database, queue, publicRoot }) {
         if (!job) throw new HttpError(404, 'Job tidak ditemukan.')
         sendJson(request, response, 200, {
           ...job,
-          message: job.message || (
-            job.status === 'completed'
-              ? 'Pegawai berhasil ditambahkan.'
-              : 'Permintaan sedang diproses.'
-          )
+          message: jobStatusMessage(job)
         })
         return
       }

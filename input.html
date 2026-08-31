@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Form input pegawai untuk NEO DB PostgreSQL 15.">
+  <meta name="description" content="Form input pegawai, site, dan perangkat untuk NEO DB PostgreSQL 15.">
   <title>Tambah Data | Employee Database Lab</title>
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,80 +40,179 @@
   <main id="main-content">
     <section class="page-heading page-heading-compact">
       <div class="shell">
-        <p class="eyebrow">Employee record</p>
-        <h1>Tambah Data Pegawai</h1>
-        <p class="heading-copy">Data dikirim ke API, diproses oleh NEO Queue, lalu disimpan ke NEO DB.</p>
+        <p class="eyebrow">Asynchronous data entry</p>
+        <h1>Tambah Data</h1>
+        <p class="heading-copy">Tambahkan pegawai, site, atau perangkat melalui NEO Queue dan simpan hasilnya ke NEO DB.</p>
       </div>
     </section>
 
     <section class="content-band">
-      <div class="shell form-layout">
-        <form class="surface employee-form" id="employee-form">
-          <div class="surface-heading">
-            <div>
-              <p class="eyebrow">Data utama</p>
-              <h2>Informasi pegawai</h2>
-            </div>
+      <div class="shell">
+        <div class="entry-type-tabs" role="tablist" aria-label="Pilih jenis data">
+          <button class="entry-type-tab is-active" id="employee-tab" type="button" role="tab" aria-selected="true" aria-controls="employee-form" data-entry-type="employee">Tambah Pegawai</button>
+          <button class="entry-type-tab" id="site-tab" type="button" role="tab" aria-selected="false" aria-controls="site-form" data-entry-type="site">Tambah Site</button>
+          <button class="entry-type-tab" id="device-tab" type="button" role="tab" aria-selected="false" aria-controls="device-form" data-entry-type="device">Tambah Device</button>
+        </div>
+
+        <div class="form-layout">
+          <div class="entry-form-stack">
+            <form class="surface employee-form" id="employee-form" role="tabpanel" aria-labelledby="employee-tab" data-entry-form="employee">
+              <div class="surface-heading">
+                <div>
+                  <p class="eyebrow">Data utama</p>
+                  <h2>Informasi pegawai</h2>
+                </div>
+              </div>
+
+              <div class="message is-hidden" role="status" data-form-message></div>
+
+              <div class="field-grid">
+                <div class="field field-wide">
+                  <label for="full-name">Nama lengkap</label>
+                  <input id="full-name" name="fullName" type="text" maxlength="120" autocomplete="name" required>
+                </div>
+                <div class="field">
+                  <label for="email">Alamat email</label>
+                  <input id="email" name="email" type="email" maxlength="120" autocomplete="email" required>
+                </div>
+                <div class="field">
+                  <label for="job-title">Jabatan</label>
+                  <input id="job-title" name="jobTitle" type="text" maxlength="100" autocomplete="organization-title" required>
+                </div>
+                <div class="field">
+                  <label for="hired-date">Tanggal bergabung</label>
+                  <input id="hired-date" name="hiredDate" type="date" required>
+                </div>
+                <div class="field">
+                  <label for="employee-site-id">Lokasi kantor</label>
+                  <select id="employee-site-id" name="siteId" required disabled>
+                    <option value="">Pilih lokasi</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="salary-id">Grade gaji</label>
+                  <select id="salary-id" name="salaryId" required disabled>
+                    <option value="">Pilih grade</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="seating-id">Kode tempat duduk</label>
+                  <select id="seating-id" name="seatingId" required disabled>
+                    <option value="">Pilih tempat duduk</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-actions form-actions-split">
+                <button class="button button-secondary" type="reset">Bersihkan</button>
+                <button class="button button-primary" type="submit" data-submit-button disabled>Kirim pegawai</button>
+              </div>
+            </form>
+
+            <form class="surface is-hidden" id="site-form" role="tabpanel" aria-labelledby="site-tab" data-entry-form="site">
+              <div class="surface-heading">
+                <div>
+                  <p class="eyebrow">Lokasi kantor</p>
+                  <h2>Informasi site</h2>
+                </div>
+              </div>
+
+              <div class="message is-hidden" role="status" data-form-message></div>
+
+              <div class="field-grid">
+                <div class="field">
+                  <label for="site-name">Nama site</label>
+                  <input id="site-name" name="siteName" type="text" maxlength="100" autocomplete="organization" required>
+                </div>
+                <div class="field">
+                  <label for="site-city">Kota</label>
+                  <input id="site-city" name="city" type="text" maxlength="100" autocomplete="address-level2" required>
+                </div>
+                <div class="field field-wide">
+                  <label for="site-address">Alamat</label>
+                  <textarea id="site-address" name="address" rows="4" maxlength="255" autocomplete="street-address" required></textarea>
+                </div>
+              </div>
+
+              <div class="form-actions form-actions-split">
+                <button class="button button-secondary" type="reset">Bersihkan</button>
+                <button class="button button-primary" type="submit" data-submit-button disabled>Kirim site</button>
+              </div>
+            </form>
+
+            <form class="surface is-hidden" id="device-form" role="tabpanel" aria-labelledby="device-tab" data-entry-form="device">
+              <div class="surface-heading">
+                <div>
+                  <p class="eyebrow">Asset assignment</p>
+                  <h2>Informasi device</h2>
+                </div>
+              </div>
+
+              <div class="message is-hidden" role="status" data-form-message></div>
+
+              <div class="field-grid">
+                <div class="field field-wide">
+                  <label for="device-employee-id">Pegawai</label>
+                  <select id="device-employee-id" name="employeeId" required disabled>
+                    <option value="">Pilih pegawai</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="device-site-name">Lokasi perangkat</label>
+                  <input id="device-site-name" type="text" value="Pilih pegawai terlebih dahulu" readonly>
+                  <input id="device-site-id" name="siteId" type="hidden">
+                </div>
+                <div class="field">
+                  <label for="device-type">Jenis perangkat</label>
+                  <input id="device-type" name="deviceType" type="text" maxlength="50" placeholder="Contoh: Laptop" required>
+                </div>
+                <div class="field">
+                  <label for="device-brand">Merek perangkat</label>
+                  <input id="device-brand" name="deviceBrand" type="text" maxlength="50" placeholder="Contoh: Lenovo" required>
+                </div>
+                <div class="field">
+                  <label for="serial-number">Serial number</label>
+                  <input id="serial-number" name="serialNumber" type="text" maxlength="100" autocomplete="off" required>
+                </div>
+                <div class="field">
+                  <label for="assigned-date">Tanggal penugasan</label>
+                  <input id="assigned-date" name="assignedDate" type="date" required>
+                </div>
+              </div>
+
+              <div class="form-actions form-actions-split">
+                <button class="button button-secondary" type="reset">Bersihkan</button>
+                <button class="button button-primary" type="submit" data-submit-button disabled>Kirim device</button>
+              </div>
+            </form>
           </div>
 
-          <div class="message is-hidden" id="form-message" role="status"></div>
-
-          <div class="field-grid">
-            <div class="field field-wide">
-              <label for="full-name">Nama lengkap</label>
-              <input id="full-name" name="fullName" type="text" maxlength="120" autocomplete="name" required>
-            </div>
-            <div class="field">
-              <label for="email">Alamat email</label>
-              <input id="email" name="email" type="email" maxlength="120" autocomplete="email" required>
-            </div>
-            <div class="field">
-              <label for="job-title">Jabatan</label>
-              <input id="job-title" name="jobTitle" type="text" maxlength="100" autocomplete="organization-title" required>
-            </div>
-            <div class="field">
-              <label for="hired-date">Tanggal bergabung</label>
-              <input id="hired-date" name="hiredDate" type="date" required>
-            </div>
-            <div class="field">
-              <label for="site-id">Lokasi kantor</label>
-              <select id="site-id" name="siteId" required disabled>
-                <option value="">Pilih lokasi</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="salary-id">Grade gaji</label>
-              <select id="salary-id" name="salaryId" required disabled>
-                <option value="">Pilih grade</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="seating-id">Kode tempat duduk</label>
-              <select id="seating-id" name="seatingId" required disabled>
-                <option value="">Pilih tempat duduk</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-actions form-actions-split">
-            <button class="button button-secondary" type="reset">Bersihkan</button>
-            <button class="button button-primary" id="submit-employee" type="submit" disabled>Kirim data</button>
-          </div>
-        </form>
-
-        <aside class="surface integrity-panel" aria-labelledby="integrity-title">
+          <aside class="surface integrity-panel" aria-labelledby="integrity-title">
           <p class="eyebrow">Data integrity</p>
           <h2 id="integrity-title">Validasi</h2>
-          <ul class="check-list">
+          <ul class="check-list" data-integrity-panel="employee">
             <li>Email harus unik.</li>
             <li>Tempat duduk harus sesuai lokasi.</li>
             <li>Referensi diperiksa ulang oleh worker.</li>
             <li>Retry menggunakan idempotency key.</li>
           </ul>
+          <ul class="check-list is-hidden" data-integrity-panel="site">
+            <li>Nama site, kota, dan alamat wajib diisi.</li>
+            <li>Kombinasi nama site dan kota harus unik.</li>
+            <li>Site baru tersedia sebagai referensi setelah job selesai.</li>
+            <li>Retry menggunakan idempotency key.</li>
+          </ul>
+          <ul class="check-list is-hidden" data-integrity-panel="device">
+            <li>Serial number harus unik.</li>
+            <li>Site mengikuti lokasi pegawai yang dipilih.</li>
+            <li>Relasi diperiksa ulang oleh worker.</li>
+            <li>Retry menggunakan idempotency key.</li>
+          </ul>
           <div class="queue-flow">
             <span>API</span><span aria-hidden="true">&gt;</span><span>NEO Queue</span><span aria-hidden="true">&gt;</span><span>Worker</span><span aria-hidden="true">&gt;</span><span>NEO DB</span>
           </div>
-        </aside>
+          </aside>
+        </div>
       </div>
     </section>
   </main>
@@ -126,7 +225,7 @@
         <address>Midplaza 1, 7th Floor<br>Jalan Jenderal Sudirman Kav. 10-11<br>Jakarta 10220</address>
       </section>
       <section class="footer-column" aria-labelledby="footer-support"><h2 id="footer-support">Support</h2><a href="query.html#query-policy">Query policy</a><a href="input.html">Data entry</a></section>
-      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">SQL Console</a><a href="input.html">Employee Form</a></section>
+      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">SQL Console</a><a href="input.html">Data Entry</a></section>
       <section class="footer-column" aria-labelledby="footer-insights"><h2 id="footer-insights">Insights</h2><a href="index.html#schema-title">Schema overview</a><a href="query.html">SQL examples</a></section>
       <section class="footer-column" aria-labelledby="footer-legal"><h2 id="footer-legal">Legal</h2><span>Testing environment</span><span>No production data</span></section>
     </div>

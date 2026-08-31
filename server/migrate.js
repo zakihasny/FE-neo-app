@@ -10,7 +10,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const MIGRATIONS = [
   { version: '001', filename: '001_schema.sql' },
   { version: '002', filename: '002_views.sql' },
-  { version: '003', filename: '003_employee_jobs.sql' }
+  { version: '003', filename: '003_employee_jobs.sql' },
+  { version: '004', filename: '004_command_jobs.sql' }
 ]
 const MIGRATION_LOCK_SQL = `
   SELECT pg_advisory_lock(

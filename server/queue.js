@@ -9,15 +9,23 @@ import {
 } from '@nats-io/jetstream'
 
 import { PermanentJobError } from './errors.js'
-import { validateEmployeeCommand } from './validation.js'
+import {
+  validateDeviceCommand,
+  validateEmployeeCommand,
+  validateSiteCommand
+} from './validation.js'
 
 export const EMPLOYEE_STREAM = 'NEO_APP_COMMANDS'
 export const EMPLOYEE_SUBJECT = 'employee.create.v1'
 export const EMPLOYEE_CONSUMER = 'neo-app-employee-writer-v1'
+export const SITE_SUBJECT = 'site.create.v1'
+export const SITE_CONSUMER = 'neo-app-site-writer-v1'
+export const DEVICE_SUBJECT = 'device.create.v1'
+export const DEVICE_CONSUMER = 'neo-app-device-writer-v1'
 
 export const EMPLOYEE_STREAM_CONFIG = Object.freeze({
   name: EMPLOYEE_STREAM,
-  subjects: Object.freeze([EMPLOYEE_SUBJECT]),
+  subjects: Object.freeze([EMPLOYEE_SUBJECT, SITE_SUBJECT, DEVICE_SUBJECT]),
   retention: RetentionPolicy.Workqueue,
   storage: StorageType.File
 })
@@ -27,6 +35,46 @@ export const EMPLOYEE_CONSUMER_CONFIG = Object.freeze({
   ack_policy: AckPolicy.Explicit,
   filter_subject: EMPLOYEE_SUBJECT
 })
+
+export const SITE_CONSUMER_CONFIG = Object.freeze({
+  durable_name: SITE_CONSUMER,
+  ack_policy: AckPolicy.Explicit,
+  filter_subject: SITE_SUBJECT
+})
+
+export const DEVICE_CONSUMER_CONFIG = Object.freeze({
+  durable_name: DEVICE_CONSUMER,
+  ack_policy: AckPolicy.Explicit,
+  filter_subject: DEVICE_SUBJECT
+})
+
+export const QUEUE_COMMANDS = Object.freeze([
+  Object.freeze({
+    resourceType: 'employee',
+    subject: EMPLOYEE_SUBJECT,
+    consumer: EMPLOYEE_CONSUMER,
+    consumerConfig: EMPLOYEE_CONSUMER_CONFIG,
+    validate: validateEmployeeCommand
+  }),
+  Object.freeze({
+    resourceType: 'site',
+    subject: SITE_SUBJECT,
+    consumer: SITE_CONSUMER,
+    consumerConfig: SITE_CONSUMER_CONFIG,
+    validate: validateSiteCommand
+  }),
+  Object.freeze({
+    resourceType: 'device',
+    subject: DEVICE_SUBJECT,
+    consumer: DEVICE_CONSUMER,
+    consumerConfig: DEVICE_CONSUMER_CONFIG,
+    validate: validateDeviceCommand
+  })
+])
+
+const queueCommandByResourceType = new Map(
+  QUEUE_COMMANDS.map((definition) => [definition.resourceType, definition])
+)
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -75,11 +123,9 @@ async function getOrCreateResource({ info, add, notFoundCode }) {
   }
 }
 
-function assertStreamCompatible(streamInfo) {
+function assertStreamStorageCompatible(streamInfo) {
   const config = streamInfo?.config
-  const subjects = Array.isArray(config?.subjects) ? config.subjects : []
   if (
-    !subjects.includes(EMPLOYEE_SUBJECT) ||
     config?.retention !== RetentionPolicy.Workqueue ||
     config?.storage !== StorageType.File
   ) {
@@ -89,21 +135,34 @@ function assertStreamCompatible(streamInfo) {
   }
 }
 
-function assertConsumerCompatible(consumerInfo) {
-  const config = consumerInfo?.config
-  if (
-    config?.durable_name !== EMPLOYEE_CONSUMER ||
-    config?.ack_policy !== AckPolicy.Explicit ||
-    config?.filter_subject !== EMPLOYEE_SUBJECT
-  ) {
+function missingStreamSubjects(streamInfo) {
+  const subjects = Array.isArray(streamInfo?.config?.subjects) ? streamInfo.config.subjects : []
+  return EMPLOYEE_STREAM_CONFIG.subjects.filter((subject) => !subjects.includes(subject))
+}
+
+function assertStreamSubjectsCompatible(streamInfo) {
+  if (missingStreamSubjects(streamInfo).length > 0) {
     throw new Error(
-      `JetStream consumer ${EMPLOYEE_CONSUMER} sudah ada tetapi konfigurasinya tidak kompatibel.`
+      `JetStream stream ${EMPLOYEE_STREAM} belum memiliki seluruh command subject.`
     )
   }
 }
 
-export async function ensureEmployeeQueueResources(manager) {
-  const stream = await getOrCreateResource({
+function assertConsumerCompatible(consumerInfo, definition) {
+  const config = consumerInfo?.config
+  if (
+    config?.durable_name !== definition.consumer ||
+    config?.ack_policy !== AckPolicy.Explicit ||
+    config?.filter_subject !== definition.subject
+  ) {
+    throw new Error(
+      `JetStream consumer ${definition.consumer} sudah ada tetapi konfigurasinya tidak kompatibel.`
+    )
+  }
+}
+
+export async function ensureCommandQueueResources(manager) {
+  let stream = await getOrCreateResource({
     info: () => manager.streams.info(EMPLOYEE_STREAM),
     add: () => manager.streams.add({
       ...EMPLOYEE_STREAM_CONFIG,
@@ -111,20 +170,53 @@ export async function ensureEmployeeQueueResources(manager) {
     }),
     notFoundCode: JetStreamApiCodes.StreamNotFound
   })
-  assertStreamCompatible(stream.info)
+  assertStreamStorageCompatible(stream.info)
 
-  const consumer = await getOrCreateResource({
-    info: () => manager.consumers.info(EMPLOYEE_STREAM, EMPLOYEE_CONSUMER),
-    add: () => manager.consumers.add(EMPLOYEE_STREAM, { ...EMPLOYEE_CONSUMER_CONFIG }),
-    notFoundCode: JetStreamApiCodes.ConsumerNotFound
-  })
-  assertConsumerCompatible(consumer.info)
+  let streamUpdated = false
+  const missingSubjects = missingStreamSubjects(stream.info)
+  if (missingSubjects.length > 0) {
+    const currentSubjects = Array.isArray(stream.info.config?.subjects)
+      ? stream.info.config.subjects
+      : []
+    try {
+      stream = {
+        info: await manager.streams.update(EMPLOYEE_STREAM, {
+          subjects: [...new Set([...currentSubjects, ...EMPLOYEE_STREAM_CONFIG.subjects])]
+        }),
+        created: stream.created
+      }
+      streamUpdated = true
+    } catch (updateError) {
+      const current = await manager.streams.info(EMPLOYEE_STREAM).catch(() => null)
+      if (!current || missingStreamSubjects(current).length > 0) throw updateError
+      stream = { info: current, created: stream.created }
+    }
+  }
+  assertStreamSubjectsCompatible(stream.info)
+
+  const consumerCreated = {}
+  for (const definition of QUEUE_COMMANDS) {
+    const consumer = await getOrCreateResource({
+      info: () => manager.consumers.info(EMPLOYEE_STREAM, definition.consumer),
+      add: () => manager.consumers.add(
+        EMPLOYEE_STREAM,
+        { ...definition.consumerConfig }
+      ),
+      notFoundCode: JetStreamApiCodes.ConsumerNotFound
+    })
+    assertConsumerCompatible(consumer.info, definition)
+    consumerCreated[definition.resourceType] = consumer.created
+  }
 
   return {
     streamCreated: stream.created,
-    consumerCreated: consumer.created
+    streamUpdated,
+    consumerCreated
   }
 }
+
+// Backward-compatible export for existing integrations and tests.
+export const ensureEmployeeQueueResources = ensureCommandQueueResources
 
 export function natsConnectionOptions(natsUrl) {
   const values = String(natsUrl || '').split(',').map((value) => value.trim()).filter(Boolean)
@@ -194,7 +286,7 @@ export class QueueService {
     this.database = database
     this.connection = null
     this.client = null
-    this.messages = null
+    this.messageSources = []
     this.loopPromise = null
     this.ready = false
     this.stopping = false
@@ -208,11 +300,13 @@ export class QueueService {
     return this.ready
   }
 
-  async publishEmployee(command) {
+  async publishCommand(command) {
     if (!this.ready || !this.client) throw new Error('NEO Queue belum siap.')
+    const definition = queueCommandByResourceType.get(command.resourceType)
+    if (!definition) throw new Error('Tipe command NEO Queue tidak didukung.')
 
     return this.client.publish(
-      EMPLOYEE_SUBJECT,
+      definition.subject,
       encoder.encode(JSON.stringify(command)),
       {
         msgID: command.idempotencyKey,
@@ -220,6 +314,10 @@ export class QueueService {
         expect: { streamName: EMPLOYEE_STREAM }
       }
     )
+  }
+
+  async publishEmployee(command) {
+    return this.publishCommand({ ...command, resourceType: 'employee' })
   }
 
   async #runConnectionLoop() {
@@ -237,7 +335,7 @@ export class QueueService {
       } finally {
         this.ready = false
         this.client = null
-        this.messages = null
+        this.messageSources = []
         this.connection = null
       }
 
@@ -255,30 +353,37 @@ export class QueueService {
     })
     try {
       const manager = await jetstreamManager(connection, { timeout: 5000 })
-      const resources = await ensureEmployeeQueueResources(manager)
+      const resources = await ensureCommandQueueResources(manager)
       const client = jetstream(connection, { timeout: 5000 })
-      const consumer = await client.consumers.get(EMPLOYEE_STREAM, EMPLOYEE_CONSUMER)
-      const messages = await consumer.consume({ max_messages: 1 })
+      const messageSources = []
+      for (const definition of QUEUE_COMMANDS) {
+        const consumer = await client.consumers.get(EMPLOYEE_STREAM, definition.consumer)
+        const messages = await consumer.consume({ max_messages: 1 })
+        messageSources.push({ definition, messages })
+      }
 
       this.connection = connection
       this.client = client
-      this.messages = messages
+      this.messageSources = messageSources
       this.ready = true
 
       console.log(JSON.stringify({
         level: 'info',
         event: 'nats_worker_ready',
         stream: EMPLOYEE_STREAM,
-        subject: EMPLOYEE_SUBJECT,
-        consumer: EMPLOYEE_CONSUMER,
+        subjects: EMPLOYEE_STREAM_CONFIG.subjects,
+        consumers: QUEUE_COMMANDS.map((definition) => definition.consumer),
         streamCreated: resources.streamCreated,
+        streamUpdated: resources.streamUpdated,
         consumerCreated: resources.consumerCreated
       }))
 
-      const worker = this.#consume(messages)
+      const workers = messageSources.map(({ definition, messages }) => (
+        this.#consume(definition, messages)
+      ))
       const closedError = await connection.closed()
-      messages.stop()
-      await worker
+      for (const source of messageSources) source.messages.stop()
+      await Promise.all(workers)
       if (closedError) throw closedError
     } catch (error) {
       await connection.close().catch(() => {})
@@ -286,20 +391,21 @@ export class QueueService {
     }
   }
 
-  async #consume(messages) {
+  async #consume(definition, messages) {
     for await (const message of messages) {
-      await this.#processMessage(message)
+      await this.#processMessage(definition, message)
     }
   }
 
-  async #processMessage(message) {
+  async #processMessage(definition, message) {
     let command
     try {
-      command = validateEmployeeCommand(JSON.parse(decoder.decode(message.data)))
+      command = definition.validate(JSON.parse(decoder.decode(message.data)))
     } catch (error) {
       console.error(JSON.stringify({
         level: 'error',
-        event: 'employee_message_invalid',
+        event: 'command_message_invalid',
+        resourceType: definition.resourceType,
         streamSequence: message.seq,
         message: safeMessage(error)
       }))
@@ -309,13 +415,14 @@ export class QueueService {
 
     try {
       message.working()
-      const result = await this.database.processEmployeeCommand(command)
+      const result = await this.database.processCommand(command)
       message.ack()
       console.log(JSON.stringify({
         level: 'info',
-        event: 'employee_message_completed',
+        event: 'command_message_completed',
         jobId: command.jobId,
-        employeeId: result.employeeId,
+        resourceType: result.resourceType,
+        resourceId: result.resourceId,
         duplicate: result.duplicate,
         streamSequence: message.seq
       }))
@@ -324,8 +431,9 @@ export class QueueService {
         message.ack()
         console.warn(JSON.stringify({
           level: 'warn',
-          event: 'employee_message_rejected',
+          event: 'command_message_rejected',
           jobId: command.jobId,
+          resourceType: definition.resourceType,
           message: error.message,
           streamSequence: message.seq
         }))
@@ -335,8 +443,9 @@ export class QueueService {
       message.nak(5000)
       console.error(JSON.stringify({
         level: 'error',
-        event: 'employee_message_retry',
+        event: 'command_message_retry',
         jobId: command.jobId,
+        resourceType: definition.resourceType,
         message: safeMessage(error),
         streamSequence: message.seq
       }))
@@ -346,7 +455,7 @@ export class QueueService {
   async stop() {
     this.stopping = true
     this.ready = false
-    this.messages?.stop()
+    for (const source of this.messageSources) source.messages.stop()
     if (this.connection) await this.connection.drain().catch(() => {})
     if (this.loopPromise) await this.loopPromise.catch(() => {})
   }

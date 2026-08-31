@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-31
+
+- Renamed the employee entry page to Tambah Data and added dedicated employee, site, and device forms.
+- Added asynchronous site and device API routes with separate NATS JetStream subjects and durable consumers.
+- Added generic command job tracking while preserving legacy employee job status lookup.
+- Added device-to-employee site validation, site uniqueness enforcement, and refreshed metadata after completed writes.
+- Expanded migration, validation, HTTP, Queue, and database unit tests for all three resource types.
+
 ## 2026-08-28
 
 - Added idempotent NATS JetStream stream and durable consumer bootstrap during service startup.

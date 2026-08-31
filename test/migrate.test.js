@@ -38,7 +38,7 @@ class FakeMigrationClient {
       return { rows: [{ applied: this.applied.has(values[0]) }] }
     }
 
-    for (const version of ['001', '002', '003']) {
+    for (const version of ['001', '002', '003', '004']) {
       if (text.includes(`VALUES ('${version}'`)) {
         this.registryExists = true
         this.applied.add(version)
@@ -75,22 +75,22 @@ test('applyMigrations applies missing migrations in order under an advisory lock
   const client = new FakeMigrationClient()
   const result = await applyMigrations(client, { logger: silentLogger })
 
-  assert.deepEqual(client.executedMigrations, ['001', '002', '003'])
-  assert.deepEqual(result.applied, ['001', '002', '003'])
+  assert.deepEqual(client.executedMigrations, ['001', '002', '003', '004'])
+  assert.deepEqual(result.applied, ['001', '002', '003', '004'])
   assert.deepEqual(result.skipped, [])
   assert.equal(client.locked, false)
   assert.equal(client.unlocked, true)
 })
 
 test('applyMigrations skips recorded migrations and optionally seeds sample data', async () => {
-  const client = new FakeMigrationClient({ applied: ['001', '002', '003'] })
+  const client = new FakeMigrationClient({ applied: ['001', '002', '003', '004'] })
   const result = await applyMigrations(client, {
     logger: silentLogger,
     seedSampleData: true
   })
 
   assert.deepEqual(client.executedMigrations, [])
-  assert.deepEqual(result.skipped, ['001', '002', '003'])
+  assert.deepEqual(result.skipped, ['001', '002', '003', '004'])
   assert.equal(result.seeded, true)
   assert.equal(client.seedRuns, 1)
 })

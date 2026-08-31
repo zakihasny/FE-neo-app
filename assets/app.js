@@ -192,8 +192,8 @@
     return option
   }
 
-  function setFormMessage(type, text) {
-    var message = document.getElementById('form-message')
+  function setFormMessage(form, type, text) {
+    var message = form.querySelector('[data-form-message]')
     message.className = 'message'
     if (type === 'error') message.classList.add('message-error')
     if (type === 'success') message.classList.add('message-success')
@@ -217,12 +217,83 @@
   }
 
   async function initializeInput() {
-    var form = document.getElementById('employee-form')
-    var siteSelect = document.getElementById('site-id')
+    var forms = Array.from(document.querySelectorAll('[data-entry-form]'))
+    var tabs = Array.from(document.querySelectorAll('[data-entry-type]'))
+    var integrityPanels = Array.from(document.querySelectorAll('[data-integrity-panel]'))
+    var employeeForm = document.getElementById('employee-form')
+    var siteForm = document.getElementById('site-form')
+    var deviceForm = document.getElementById('device-form')
+    var siteSelect = document.getElementById('employee-site-id')
     var salarySelect = document.getElementById('salary-id')
     var seatingSelect = document.getElementById('seating-id')
-    var submitButton = document.getElementById('submit-employee')
+    var deviceEmployeeSelect = document.getElementById('device-employee-id')
+    var deviceSiteId = document.getElementById('device-site-id')
+    var deviceSiteName = document.getElementById('device-site-name')
     var seating = []
+    var employees = []
+
+    var formDefinitions = {
+      employee: {
+        form: employeeForm,
+        endpoint: 'employees',
+        label: 'Pegawai',
+        submittingLabel: 'Mengirim pegawai...'
+      },
+      site: {
+        form: siteForm,
+        endpoint: 'sites',
+        label: 'Site',
+        submittingLabel: 'Mengirim site...'
+      },
+      device: {
+        form: deviceForm,
+        endpoint: 'devices',
+        label: 'Device',
+        submittingLabel: 'Mengirim device...'
+      }
+    }
+
+    function selectEntryType(type, updateUrl) {
+      if (!formDefinitions[type]) type = 'employee'
+      tabs.forEach(function (tab) {
+        var active = tab.dataset.entryType === type
+        tab.classList.toggle('is-active', active)
+        tab.setAttribute('aria-selected', String(active))
+        tab.setAttribute('tabindex', active ? '0' : '-1')
+      })
+      forms.forEach(function (form) {
+        form.classList.toggle('is-hidden', form.dataset.entryForm !== type)
+      })
+      integrityPanels.forEach(function (panel) {
+        panel.classList.toggle('is-hidden', panel.dataset.integrityPanel !== type)
+      })
+
+      if (updateUrl && window.history && window.history.replaceState) {
+        var url = new URL(window.location.href)
+        url.searchParams.set('type', type)
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      }
+    }
+
+    tabs.forEach(function (tab, index) {
+      tab.addEventListener('click', function () {
+        selectEntryType(tab.dataset.entryType, true)
+      })
+      tab.addEventListener('keydown', function (event) {
+        var nextIndex = null
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length
+        if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length
+        if (event.key === 'Home') nextIndex = 0
+        if (event.key === 'End') nextIndex = tabs.length - 1
+        if (nextIndex === null) return
+        event.preventDefault()
+        tabs[nextIndex].focus()
+        selectEntryType(tabs[nextIndex].dataset.entryType, true)
+      })
+    })
+
+    var initialType = new URL(window.location.href).searchParams.get('type') || 'employee'
+    selectEntryType(initialType, false)
 
     function populateSeating() {
       var siteId = Number(siteSelect.value)
@@ -235,87 +306,163 @@
       seatingSelect.disabled = !siteId
     }
 
-    siteSelect.addEventListener('change', populateSeating)
+    function populateDeviceSite() {
+      var employeeId = Number(deviceEmployeeSelect.value)
+      var employee = employees.find(function (item) {
+        return Number(item.employee_id) === employeeId
+      })
+      deviceSiteId.value = employee ? String(employee.site_id) : ''
+      deviceSiteName.value = employee
+        ? employee.site_name
+        : 'Pilih pegawai terlebih dahulu'
+    }
 
-    form.addEventListener('reset', function () {
-      window.setTimeout(populateSeating, 0)
-    })
-
-    try {
-      var meta = await apiRequest('meta')
+    function populateMeta(meta) {
       seating = Array.isArray(meta.seating) ? meta.seating : []
+      employees = Array.isArray(meta.employees) ? meta.employees : []
 
+      siteSelect.replaceChildren(createOption('', 'Pilih lokasi'))
       ;(meta.sites || []).forEach(function (site) {
         siteSelect.appendChild(createOption(site.site_id, site.site_name + ' | ' + site.city))
       })
 
+      salarySelect.replaceChildren(createOption('', 'Pilih grade'))
       var rupiah = new Intl.NumberFormat('id-ID', {
         style: 'currency',
         currency: 'IDR',
         maximumFractionDigits: 0
       })
-
       ;(meta.salaries || []).forEach(function (salary) {
-        salarySelect.appendChild(createOption(salary.salary_id, salary.salary_grade + ' | ' + rupiah.format(salary.basic_salary)))
+        salarySelect.appendChild(createOption(
+          salary.salary_id,
+          salary.salary_grade + ' | ' + rupiah.format(salary.basic_salary)
+        ))
+      })
+
+      deviceEmployeeSelect.replaceChildren(createOption('', 'Pilih pegawai'))
+      employees.forEach(function (employee) {
+        deviceEmployeeSelect.appendChild(createOption(
+          employee.employee_id,
+          employee.full_name + ' | ' + employee.site_name
+        ))
       })
 
       siteSelect.disabled = false
       salarySelect.disabled = false
-      submitButton.disabled = false
+      deviceEmployeeSelect.disabled = false
+      forms.forEach(function (form) {
+        form.querySelector('[data-submit-button]').disabled = false
+      })
+      populateSeating()
+      populateDeviceSite()
+    }
+
+    async function loadMeta() {
+      var meta = await apiRequest('meta')
+      populateMeta(meta)
       setApiStatus('connected', 'API terhubung')
+    }
+
+    siteSelect.addEventListener('change', populateSeating)
+    deviceEmployeeSelect.addEventListener('change', populateDeviceSite)
+
+    employeeForm.addEventListener('reset', function () {
+      window.setTimeout(populateSeating, 0)
+    })
+
+    deviceForm.addEventListener('reset', function () {
+      window.setTimeout(populateDeviceSite, 0)
+    })
+
+    try {
+      await loadMeta()
     } catch (error) {
-      setFormMessage('error', 'Referensi database tidak tersedia. Periksa konfigurasi API dan koneksi NEO DB.')
+      setFormMessage(employeeForm, 'error', 'Referensi database tidak tersedia. Periksa konfigurasi API dan koneksi NEO DB.')
       setApiStatus('error', 'API tidak tersedia')
     }
 
-    form.addEventListener('submit', async function (event) {
-      event.preventDefault()
-      submitButton.disabled = true
-      submitButton.textContent = 'Mengirim...'
-
+    function requestFromForm(resourceType, form) {
       var formData = new FormData(form)
       var idempotencyKey = window.crypto && window.crypto.randomUUID
         ? window.crypto.randomUUID()
         : String(Date.now()) + '-' + Math.random().toString(16).slice(2)
 
-      var request = {
-        fullName: String(formData.get('fullName') || '').trim(),
-        email: String(formData.get('email') || '').trim(),
-        jobTitle: String(formData.get('jobTitle') || '').trim(),
-        hiredDate: String(formData.get('hiredDate') || ''),
+      if (resourceType === 'employee') {
+        return {
+          fullName: String(formData.get('fullName') || '').trim(),
+          email: String(formData.get('email') || '').trim(),
+          jobTitle: String(formData.get('jobTitle') || '').trim(),
+          hiredDate: String(formData.get('hiredDate') || ''),
+          siteId: Number(formData.get('siteId')),
+          salaryId: Number(formData.get('salaryId')),
+          seatingId: Number(formData.get('seatingId')),
+          idempotencyKey: idempotencyKey
+        }
+      }
+
+      if (resourceType === 'site') {
+        return {
+          siteName: String(formData.get('siteName') || '').trim(),
+          city: String(formData.get('city') || '').trim(),
+          address: String(formData.get('address') || '').trim(),
+          idempotencyKey: idempotencyKey
+        }
+      }
+
+      return {
+        employeeId: Number(formData.get('employeeId')),
         siteId: Number(formData.get('siteId')),
-        salaryId: Number(formData.get('salaryId')),
-        seatingId: Number(formData.get('seatingId')),
+        deviceType: String(formData.get('deviceType') || '').trim(),
+        deviceBrand: String(formData.get('deviceBrand') || '').trim(),
+        serialNumber: String(formData.get('serialNumber') || '').trim(),
+        assignedDate: String(formData.get('assignedDate') || ''),
         idempotencyKey: idempotencyKey
       }
+    }
 
-      try {
-        var response = await apiRequest('employees', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify(request)
-        })
+    Object.keys(formDefinitions).forEach(function (resourceType) {
+      var definition = formDefinitions[resourceType]
+      var form = definition.form
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault()
+        var submitButton = form.querySelector('[data-submit-button]')
+        var defaultLabel = submitButton.textContent
+        submitButton.disabled = true
+        submitButton.textContent = definition.submittingLabel
 
-        if (response.employeeId) {
-          setFormMessage('success', response.message + ' Employee ID: ' + response.employeeId + '.')
+        try {
+          var response = await apiRequest(definition.endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify(requestFromForm(resourceType, form))
+          })
+
+          if (!response.jobId) throw new Error('API tidak mengembalikan job ID.')
+
+          setFormMessage(form, 'success', response.message + ' Job ID: ' + response.jobId + '.')
+          var completed = await waitForJob(response.jobId)
+          if (!completed) {
+            setFormMessage(form, 'success', 'Request masih diproses. Job ID: ' + response.jobId + '.')
+            return
+          }
+
+          setFormMessage(
+            form,
+            'success',
+            (completed.message || definition.label + ' berhasil ditambahkan.') +
+              ' ID: ' + completed.resourceId + '.'
+          )
           form.reset()
-          return
+          await loadMeta().catch(function () {
+            setApiStatus('error', 'Referensi perlu dimuat ulang')
+          })
+        } catch (error) {
+          setFormMessage(form, 'error', error.message || 'Data tidak dapat dikirim.')
+        } finally {
+          submitButton.disabled = false
+          submitButton.textContent = defaultLabel
         }
-
-        if (!response.jobId) throw new Error('API tidak mengembalikan job ID.')
-
-        setFormMessage('success', response.message + ' Job ID: ' + response.jobId + '.')
-        form.reset()
-        var completed = await waitForJob(response.jobId)
-        setFormMessage('success', completed
-          ? (completed.message || 'Pegawai berhasil ditambahkan.') + ' Employee ID: ' + completed.employeeId + '.'
-          : 'Request masih diproses. Job ID: ' + response.jobId + '.')
-      } catch (error) {
-        setFormMessage('error', error.message || 'Data pegawai tidak dapat dikirim.')
-      } finally {
-        submitButton.disabled = false
-        submitButton.textContent = 'Kirim data'
-      }
+      })
     })
   }
 

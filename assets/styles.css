@@ -470,6 +470,44 @@ tbody tr:last-child td {
   gap: var(--column-gutter);
 }
 
+.entry-type-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  padding: var(--space-2);
+  border: 1px solid var(--control-border-color);
+  border-radius: var(--radius-card);
+  background: var(--color-neutral-100);
+}
+
+.entry-type-tab {
+  min-height: var(--button-height-large);
+  padding-inline: var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--button-radius);
+  color: var(--color-neutral-700);
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-ui);
+}
+
+.entry-type-tab:hover {
+  color: var(--color-primary-700);
+  background: var(--color-primary-100);
+}
+
+.entry-type-tab.is-active {
+  border-color: var(--color-primary-700);
+  color: var(--color-primary-700);
+  background: var(--color-neutral-0);
+}
+
+.entry-form-stack {
+  min-width: 0;
+}
+
 .surface {
   padding: var(--space-6);
   border: 1px solid var(--surface-border-color);
@@ -552,6 +590,11 @@ select:disabled,
 textarea:disabled {
   color: var(--color-text-disabled);
   background: var(--color-neutral-200);
+}
+
+input[readonly] {
+  color: var(--color-neutral-700);
+  background: var(--color-neutral-100);
 }
 
 .query-editor textarea {
@@ -804,7 +847,8 @@ textarea:disabled {
   }
 
   .action-grid,
-  .field-grid {
+  .field-grid,
+  .entry-type-tabs {
     grid-template-columns: 1fr;
   }
 

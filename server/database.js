@@ -7,30 +7,134 @@ const { Pool } = pg
 
 function toJob(row) {
   if (!row) return null
-  return {
+  const resourceType = row.resource_type || 'employee'
+  const resourceId = row.resource_id ?? row.employee_id ?? null
+  const job = {
     jobId: row.job_id,
     status: row.status,
-    employeeId: row.employee_id,
+    resourceType,
+    resourceId,
     message: row.error_message || undefined,
     createdAt: row.created_at,
     completedAt: row.completed_at
   }
+  if (resourceType === 'employee') job.employeeId = resourceId
+  if (resourceType === 'site') job.siteId = resourceId
+  if (resourceType === 'device') job.deviceId = resourceId
+  return job
 }
 
-function permanentDatabaseError(error) {
+function permanentDatabaseError(error, resourceType) {
   if (error instanceof PermanentJobError) return error
   if (error?.code === '23505') {
-    return new PermanentJobError('Alamat email tersebut sudah terdaftar.')
+    const messages = {
+      employee: 'Alamat email tersebut sudah terdaftar.',
+      site: 'Site dengan nama dan kota tersebut sudah terdaftar.',
+      device: 'Serial number perangkat tersebut sudah terdaftar.'
+    }
+    return new PermanentJobError(messages[resourceType] || 'Data tersebut sudah terdaftar.')
   }
   if (error?.code === '23503' || error?.code === '23514' || error?.code === '22P02') {
-    return new PermanentJobError('Data pegawai tidak memenuhi constraint database.')
+    return new PermanentJobError('Data tidak memenuhi constraint database.')
   }
   return null
 }
 
+async function createEmployee(client, command) {
+  const relationships = await client.query({
+    text: `
+      SELECT
+        EXISTS(SELECT 1 FROM employee_app.sites WHERE site_id = $1) AS site_exists,
+        EXISTS(SELECT 1 FROM employee_app.salaries WHERE salary_id = $2) AS salary_exists,
+        EXISTS(
+          SELECT 1
+          FROM employee_app.seating
+          WHERE seating_id = $3 AND site_id = $1
+        ) AS seating_matches
+    `,
+    values: [command.siteId, command.salaryId, command.seatingId]
+  })
+  const relation = relationships.rows[0]
+  if (!relation?.site_exists) throw new PermanentJobError('Lokasi kantor tidak ditemukan.')
+  if (!relation?.salary_exists) throw new PermanentJobError('Grade gaji tidak ditemukan.')
+  if (!relation?.seating_matches) {
+    throw new PermanentJobError('Tempat duduk tidak berada pada lokasi yang dipilih.')
+  }
+
+  const result = await client.query({
+    text: `
+      INSERT INTO employee_app.employees
+        (site_id, salary_id, seating_id, full_name, email, job_title, hired_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::date)
+      RETURNING employee_id
+    `,
+    values: [
+      command.siteId,
+      command.salaryId,
+      command.seatingId,
+      command.fullName,
+      command.email,
+      command.jobTitle,
+      command.hiredDate
+    ]
+  })
+  return result.rows[0].employee_id
+}
+
+async function createSite(client, command) {
+  const result = await client.query({
+    text: `
+      INSERT INTO employee_app.sites (site_name, city, address)
+      VALUES ($1, $2, $3)
+      RETURNING site_id
+    `,
+    values: [command.siteName, command.city, command.address]
+  })
+  return result.rows[0].site_id
+}
+
+async function createDevice(client, command) {
+  const employee = await client.query({
+    text: `
+      SELECT employee_id, site_id
+      FROM employee_app.employees
+      WHERE employee_id = $1
+    `,
+    values: [command.employeeId]
+  })
+  if (employee.rowCount !== 1) throw new PermanentJobError('Pegawai tidak ditemukan.')
+  if (Number(employee.rows[0].site_id) !== command.siteId) {
+    throw new PermanentJobError('Lokasi perangkat harus sama dengan lokasi pegawai.')
+  }
+
+  const result = await client.query({
+    text: `
+      INSERT INTO employee_app.employee_devices
+        (employee_id, site_id, device_type, device_brand, serial_number, assigned_date)
+      VALUES ($1, $2, $3, $4, $5, $6::date)
+      RETURNING employee_device_id
+    `,
+    values: [
+      command.employeeId,
+      command.siteId,
+      command.deviceType,
+      command.deviceBrand,
+      command.serialNumber,
+      command.assignedDate
+    ]
+  })
+  return result.rows[0].employee_device_id
+}
+
+const commandHandlers = {
+  employee: createEmployee,
+  site: createSite,
+  device: createDevice
+}
+
 export class DatabaseService {
-  constructor(connectionString) {
-    this.pool = new Pool({
+  constructor(connectionString, { pool } = {}) {
+    this.pool = pool || new Pool({
       connectionString,
       max: 5,
       idleTimeoutMillis: 30000,
@@ -39,7 +143,7 @@ export class DatabaseService {
       application_name: 'fe-neo-app'
     })
 
-    this.pool.on('error', (error) => {
+    this.pool.on?.('error', (error) => {
       console.error(JSON.stringify({
         level: 'error',
         event: 'postgres_pool_error',
@@ -74,7 +178,7 @@ export class DatabaseService {
   }
 
   async meta() {
-    const [sites, salaries, seating] = await Promise.all([
+    const [sites, salaries, seating, employees] = await Promise.all([
       this.pool.query(`
         SELECT site_id, site_name, city
         FROM employee_app.sites
@@ -89,13 +193,20 @@ export class DatabaseService {
         SELECT seating_id, site_id, floor_number, seat_code
         FROM employee_app.seating
         ORDER BY site_id, floor_number, seat_code
+      `),
+      this.pool.query(`
+        SELECT e.employee_id, e.full_name, e.site_id, s.site_name
+        FROM employee_app.employees AS e
+        JOIN employee_app.sites AS s ON s.site_id = e.site_id
+        ORDER BY e.full_name, e.employee_id
       `)
     ])
 
     return {
       sites: sites.rows,
       salaries: salaries.rows,
-      seating: seating.rows
+      seating: seating.rows,
+      employees: employees.rows
     }
   }
 
@@ -130,13 +241,19 @@ export class DatabaseService {
   async createJob(command) {
     const inserted = await this.pool.query({
       text: `
-        INSERT INTO employee_app.employee_jobs
-          (job_id, idempotency_key, status, request_payload)
-        VALUES ($1, $2, 'queued', $3::jsonb)
+        INSERT INTO employee_app.command_jobs
+          (job_id, idempotency_key, resource_type, operation, status, request_payload)
+        VALUES ($1, $2, $3, 'create', 'queued', $4::jsonb)
         ON CONFLICT (idempotency_key) DO NOTHING
-        RETURNING job_id, status, employee_id, error_message, created_at, completed_at
+        RETURNING job_id, resource_type, status, resource_id,
+                  error_message, created_at, completed_at
       `,
-      values: [command.jobId, command.idempotencyKey, JSON.stringify(command)]
+      values: [
+        command.jobId,
+        command.idempotencyKey,
+        command.resourceType,
+        JSON.stringify(command)
+      ]
     })
 
     if (inserted.rowCount === 1) {
@@ -145,8 +262,9 @@ export class DatabaseService {
 
     const existing = await this.pool.query({
       text: `
-        SELECT job_id, status, employee_id, error_message, created_at, completed_at
-        FROM employee_app.employee_jobs
+        SELECT job_id, resource_type, status, resource_id,
+               error_message, created_at, completed_at
+        FROM employee_app.command_jobs
         WHERE idempotency_key = $1
       `,
       values: [command.idempotencyKey]
@@ -157,7 +275,7 @@ export class DatabaseService {
   async markJobPublished(jobId, acknowledgement) {
     await this.pool.query({
       text: `
-        UPDATE employee_app.employee_jobs
+        UPDATE employee_app.command_jobs
         SET nats_stream = $2,
             nats_sequence = $3,
             published_at = current_timestamp,
@@ -172,7 +290,7 @@ export class DatabaseService {
   async markJobFailed(jobId, message) {
     await this.pool.query({
       text: `
-        UPDATE employee_app.employee_jobs
+        UPDATE employee_app.command_jobs
         SET status = 'failed',
             error_message = left($2, 500),
             completed_at = current_timestamp,
@@ -185,36 +303,54 @@ export class DatabaseService {
   }
 
   async getJob(jobId) {
-    const result = await this.pool.query({
+    let result = await this.pool.query({
       text: `
-        SELECT job_id, status, employee_id, error_message, created_at, completed_at
-        FROM employee_app.employee_jobs
+        SELECT job_id, resource_type, status, resource_id,
+               error_message, created_at, completed_at
+        FROM employee_app.command_jobs
         WHERE job_id = $1
       `,
       values: [jobId]
     })
+    if (result.rowCount === 0) {
+      result = await this.pool.query({
+        text: `
+          SELECT job_id, 'employee' AS resource_type, status,
+                 employee_id AS resource_id, error_message, created_at, completed_at
+          FROM employee_app.employee_jobs
+          WHERE job_id = $1
+        `,
+        values: [jobId]
+      })
+    }
     return toJob(result.rows[0])
   }
 
-  async processEmployeeCommand(command) {
+  async processCommand(command) {
     const client = await this.pool.connect()
+    let persistedJobId = command.jobId
 
     try {
       await client.query('BEGIN')
       await client.query({
         text: `
-          INSERT INTO employee_app.employee_jobs
-            (job_id, idempotency_key, status, request_payload)
-          VALUES ($1, $2, 'queued', $3::jsonb)
+          INSERT INTO employee_app.command_jobs
+            (job_id, idempotency_key, resource_type, operation, status, request_payload)
+          VALUES ($1, $2, $3, 'create', 'queued', $4::jsonb)
           ON CONFLICT (idempotency_key) DO NOTHING
         `,
-        values: [command.jobId, command.idempotencyKey, JSON.stringify(command)]
+        values: [
+          command.jobId,
+          command.idempotencyKey,
+          command.resourceType,
+          JSON.stringify(command)
+        ]
       })
 
       const jobResult = await client.query({
         text: `
-          SELECT job_id, status, employee_id
-          FROM employee_app.employee_jobs
+          SELECT job_id, resource_type, status, resource_id
+          FROM employee_app.command_jobs
           WHERE idempotency_key = $1
           FOR UPDATE
         `,
@@ -222,85 +358,69 @@ export class DatabaseService {
       })
       const job = jobResult.rows[0]
       if (!job) throw new Error('Job record tidak ditemukan.')
+      persistedJobId = job.job_id
+      if (job.resource_type !== command.resourceType) {
+        throw new PermanentJobError('Idempotency key sudah digunakan untuk tipe data lain.')
+      }
 
       if (job.status === 'completed') {
         await client.query('COMMIT')
-        return { status: 'completed', employeeId: job.employee_id, duplicate: true }
+        return {
+          status: 'completed',
+          resourceType: job.resource_type,
+          resourceId: job.resource_id,
+          duplicate: true
+        }
       }
 
       await client.query({
         text: `
-          UPDATE employee_app.employee_jobs
+          UPDATE employee_app.command_jobs
           SET status = 'processing', error_message = NULL, updated_at = current_timestamp
           WHERE job_id = $1
         `,
         values: [job.job_id]
       })
 
-      const relationships = await client.query({
-        text: `
-          SELECT
-            EXISTS(SELECT 1 FROM employee_app.sites WHERE site_id = $1) AS site_exists,
-            EXISTS(SELECT 1 FROM employee_app.salaries WHERE salary_id = $2) AS salary_exists,
-            EXISTS(
-              SELECT 1
-              FROM employee_app.seating
-              WHERE seating_id = $3 AND site_id = $1
-            ) AS seating_matches
-        `,
-        values: [command.siteId, command.salaryId, command.seatingId]
-      })
-      const relation = relationships.rows[0]
-      if (!relation?.site_exists) throw new PermanentJobError('Lokasi kantor tidak ditemukan.')
-      if (!relation?.salary_exists) throw new PermanentJobError('Grade gaji tidak ditemukan.')
-      if (!relation?.seating_matches) {
-        throw new PermanentJobError('Tempat duduk tidak berada pada lokasi yang dipilih.')
-      }
-
-      const employee = await client.query({
-        text: `
-          INSERT INTO employee_app.employees
-            (site_id, salary_id, seating_id, full_name, email, job_title, hired_date)
-          VALUES ($1, $2, $3, $4, $5, $6, $7::date)
-          RETURNING employee_id
-        `,
-        values: [
-          command.siteId,
-          command.salaryId,
-          command.seatingId,
-          command.fullName,
-          command.email,
-          command.jobTitle,
-          command.hiredDate
-        ]
-      })
-      const employeeId = employee.rows[0].employee_id
+      const handler = commandHandlers[command.resourceType]
+      if (!handler) throw new PermanentJobError('Tipe command tidak didukung.')
+      const resourceId = await handler(client, command)
 
       await client.query({
         text: `
-          UPDATE employee_app.employee_jobs
+          UPDATE employee_app.command_jobs
           SET status = 'completed',
-              employee_id = $2,
+              resource_id = $2,
               error_message = NULL,
               completed_at = current_timestamp,
               updated_at = current_timestamp
           WHERE job_id = $1
         `,
-        values: [job.job_id, employeeId]
+        values: [job.job_id, resourceId]
       })
       await client.query('COMMIT')
-      return { status: 'completed', employeeId, duplicate: false }
+      return {
+        status: 'completed',
+        resourceType: command.resourceType,
+        resourceId,
+        duplicate: false
+      }
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {})
-      const permanent = permanentDatabaseError(error)
+      const permanent = permanentDatabaseError(error, command.resourceType)
       if (permanent) {
-        await this.markJobFailed(command.jobId, permanent.message)
+        await this.markJobFailed(persistedJobId, permanent.message)
         throw permanent
       }
       throw error
     } finally {
       client.release()
     }
+  }
+
+  async processEmployeeCommand(command) {
+    const result = await this.processCommand({ ...command, resourceType: 'employee' })
+    return { ...result, employeeId: result.resourceId }
   }
 
   async close() {
