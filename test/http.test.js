@@ -7,6 +7,36 @@ import { createHttpServer } from '../server/http.js'
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
+test('liveness probes support GET and HEAD without querying database or queue', async (context) => {
+  const unavailableDependency = new Proxy({}, {
+    get() { throw new Error('Liveness must not query an external dependency') }
+  })
+  const server = createHttpServer({
+    database: unavailableDependency,
+    queue: unavailableDependency,
+    publicRoot: repositoryRoot
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise((resolve) => server.close(resolve)))
+  const baseUrl = `http://127.0.0.1:${server.address().port}`
+
+  for (const endpoint of ['/healthz', '/health/live', '/api/health/live']) {
+    const response = await fetch(`${baseUrl}${endpoint}`)
+    assert.equal(response.status, 200, endpoint)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.deepEqual(await response.json(), { status: 'ok', service: 'fe-neo-app' })
+
+    const head = await fetch(`${baseUrl}${endpoint}`, { method: 'HEAD' })
+    assert.equal(head.status, 200, endpoint)
+    assert.equal(head.headers.get('content-length'), response.headers.get('content-length'))
+    assert.equal(await head.text(), '')
+  }
+
+  const unsupported = await fetch(`${baseUrl}/healthz`, { method: 'POST' })
+  assert.equal(unsupported.status, 404)
+  await unsupported.text()
+})
+
 test('HTTP service serves static pages and the API contract', async (context) => {
   const createdCommands = []
   const database = {

@@ -16,7 +16,12 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM node:24-alpine AS runtime
 
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=80
+
+# Allow the non-root Node process to bind port 80 when the runtime permits this capability.
+RUN apk add --no-cache --virtual .port-capability libcap \
+    && setcap 'cap_net_bind_service=+ep' /usr/local/bin/node \
+    && apk del .port-capability
 
 WORKDIR /app
 
@@ -30,9 +35,9 @@ COPY --chown=node:node index.html input.html query.html ./
 
 USER node
 
-EXPOSE 8080
+EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=240s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/health/live').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 80) + '/healthz').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
 
 CMD ["node", "server/index.js"]

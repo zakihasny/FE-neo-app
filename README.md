@@ -21,7 +21,8 @@ HTTP service melayani halaman dan API dari origin yang sama:
 - `/api/sites`: publish command tambah site.
 - `/api/devices`: publish command tambah device.
 - `/api/jobs/:jobId`: status command.
-- `/health/live` dan `/health/ready`: probe service.
+- `/healthz`: liveness probe bawaan NEO App (GET/HEAD); alias `/health/live` dan `/api/health/live` tetap didukung.
+- `/health/ready`: readiness probe yang memeriksa PostgreSQL dan NATS.
 
 ## Requirement
 
@@ -57,7 +58,11 @@ NATS_URL=nats://token@message-neo-app:4222
 
 Untuk NEO Queue dengan token authentication, token ditempatkan sebelum `@`. Format `nats://username:password@host:port` dari service binding NEO App juga didukung. Service memisahkan credential dari endpoint dan meneruskannya melalui opsi autentikasi NATS; credential tidak dicetak ke log.
 
-`PORT` bersifat opsional dan default ke `8080`. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
+`PORT` bersifat opsional dan default ke `80`, sesuai port service bawaan pada dashboard NEO App. Nilai `PORT` yang sudah diatur pada runtime tetap mengoverride default ini. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
+
+Untuk deployment GitHub atau Local source dengan port service `80` dan health check `/healthz`, gunakan source/image terbaru lalu redeploy. Dockerfile menggunakan port `80` dan health check `/healthz`. `/healthz` menunjukkan proses HTTP hidup, sedangkan `/health/ready` memeriksa kesiapan database dan queue. HTTP baru dibuka setelah startup migration selesai.
+
+Container tetap berjalan sebagai user `node`. Dockerfile menambahkan file capability `NET_BIND_SERVICE` pada executable Node untuk membuka port rendah. Runtime Linux harus mengizinkan capability tersebut atau port `80` untuk non-root. Jika kebijakan platform memblokirnya (misalnya capability dibuang atau file capability tidak dapat diterapkan), perubahan source saja tidak cukup; log akan menunjukkan `EACCES`/`EPERM` dan konfigurasi runtime perlu diperiksa. Build Railpack yang tidak memakai Dockerfile mengikuti kebijakan user/capability dari builder dan platform.
 
 Startup migration aktif secara default. Dua kontrol non-secret berikut bersifat opsional:
 
@@ -96,10 +101,11 @@ corepack enable
 corepack prepare pnpm@11.16.0 --activate
 pnpm install --frozen-lockfile
 pnpm test
+export PORT=8080
 pnpm start
 ```
 
-Buka `http://127.0.0.1:8080/`.
+Buka `http://127.0.0.1:8080/`. Pada PowerShell, gunakan `$env:PORT = '8080'` untuk menggantikan `export PORT=8080`.
 
 ## Docker
 
@@ -114,7 +120,7 @@ Jalankan menggunakan runtime secrets:
 ```bash
 docker run --rm \
   --name fe-neo-app \
-  -p 8080:8080 \
+  -p 8080:80 \
   -e DATABASE_URL="$DATABASE_URL" \
   -e NATS_URL="$NATS_URL" \
   fe-neo-app:1.3.0
@@ -123,7 +129,7 @@ docker run --rm \
 Verifikasi:
 
 ```bash
-curl --fail http://127.0.0.1:8080/health/live
+curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/health/ready
 curl --fail http://127.0.0.1:8080/api/summary
 ```

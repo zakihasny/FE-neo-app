@@ -14,7 +14,7 @@ function requireEnvironment(name) {
 
 const databaseUrl = requireEnvironment('DATABASE_URL')
 const natsUrl = requireEnvironment('NATS_URL')
-const port = Number(process.env.PORT || 8080)
+const port = Number(process.env.PORT || 80)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT tidak valid.')
 
 await runMigrations(databaseUrl, {

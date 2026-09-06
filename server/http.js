@@ -217,7 +217,7 @@ export function createHttpServer({ database, queue, publicRoot }) {
     response.setHeader('X-Request-Id', requestId)
 
     try {
-      if ((pathname === '/health/live' || pathname === '/api/health/live') &&
+      if ((pathname === '/healthz' || pathname === '/health/live' || pathname === '/api/health/live') &&
           (request.method === 'GET' || request.method === 'HEAD')) {
         sendJson(request, response, 200, { status: 'ok', service: 'fe-neo-app' })
         return

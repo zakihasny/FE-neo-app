@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-07
+
+- Changed the default HTTP port and Dockerfile exposed port to 80 to match NEO App's default service port.
+- Added GET/HEAD /healthz liveness probes while preserving existing health and readiness endpoints.
+- Updated the Docker health check and added NET_BIND_SERVICE file capability for the non-root Node process, subject to runtime security policy.
+- Added liveness regression coverage for GET, HEAD, legacy aliases, and unavailable external dependencies.
+
 ## 2026-08-31
 
 - Renamed the employee entry page to Tambah Data and added dedicated employee, site, and device forms.
