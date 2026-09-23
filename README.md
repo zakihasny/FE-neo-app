@@ -1,12 +1,12 @@
 # FE NEO App HTTP Service
 
-FE NEO App menyajikan frontend Employee Database Lab dan backend API dari satu HTTP service. Backend membaca PostgreSQL 15 melalui `DATABASE_URL` dan menggunakan NATS JetStream melalui `NATS_URL`. Kedua credential hanya tersedia pada runtime container dan tidak dikirim ke browser.
+FE NEO App menyajikan frontend Employee Database Lab dan backend API dari satu HTTP service. Backend membaca PostgreSQL 16 melalui `DATABASE_URL` dan menggunakan NATS JetStream melalui `NATS_URL`. Kedua credential hanya tersedia pada runtime container dan tidak dikirim ke browser.
 
 ## Arsitektur
 
 ```text
-Browser -> HTTP service -> PostgreSQL 15 NEO DB
-                        -> NATS JetStream -> command workers -> PostgreSQL 15 NEO DB
+Browser -> HTTP service -> PostgreSQL 16 NEO DB
+                        -> NATS JetStream -> command workers -> PostgreSQL 16 NEO DB
 ```
 
 HTTP service melayani halaman dan API dari origin yang sama:
@@ -26,7 +26,7 @@ HTTP service melayani halaman dan API dari origin yang sama:
 
 ## Requirement
 
-- NEO DB PostgreSQL 15 yang dapat dijangkau dari HTTP service.
+- NEO DB PostgreSQL 16 yang dapat dijangkau dari HTTP service.
 - Credential pada `DATABASE_URL` memiliki izin membuat schema, table, view, index, dan constraint saat migration pertama. Setelah bootstrap, gunakan credential dengan privilege yang lebih sempit bila lifecycle NEO App memungkinkan rotasi binding.
 - NEO Queue dengan JetStream aktif. Saat startup, service otomatis membuat resource berikut bila belum ada:
 

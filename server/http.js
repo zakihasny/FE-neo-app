@@ -230,7 +230,7 @@ export function createHttpServer({ database, queue, publicRoot }) {
         sendJson(request, response, 200, {
           status: 'ready',
           database: ready.database,
-          postgresqlMajor: 15,
+          postgresqlMajor: 16,
           queue: 'connected'
         })
         return

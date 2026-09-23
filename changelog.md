@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-23
+
+- Raised the required NEO DB major version from PostgreSQL 15 to PostgreSQL 16 across startup migrations, readiness checks, documentation, and UI metadata.
+- Updated migration and HTTP regression tests to validate PostgreSQL 16 and reject PostgreSQL 15.
+
 ## 2026-09-07
 
 - Changed the default HTTP port and Dockerfile exposed port to 80 to match NEO App's default service port.

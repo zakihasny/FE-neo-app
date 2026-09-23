@@ -4,8 +4,8 @@ DO $$
 DECLARE
   server_major_version integer := current_setting('server_version_num')::integer / 10000;
 BEGIN
-  IF server_major_version <> 15 THEN
-    RAISE EXCEPTION 'FE-neo-app requires PostgreSQL 15; connected server major version is %', server_major_version;
+  IF server_major_version <> 16 THEN
+    RAISE EXCEPTION 'FE-neo-app requires PostgreSQL 16; connected server major version is %', server_major_version;
   END IF;
 END
 $$;
@@ -13,7 +13,7 @@ $$;
 CREATE SCHEMA IF NOT EXISTS employee_app;
 
 COMMENT ON SCHEMA employee_app IS
-  'Employee Database Lab schema for NEO DB PostgreSQL 15';
+  'Employee Database Lab schema for NEO DB PostgreSQL 16';
 
 CREATE TABLE IF NOT EXISTS employee_app.schema_migrations (
   version varchar(50) PRIMARY KEY,

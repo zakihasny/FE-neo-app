@@ -40,7 +40,7 @@ test('liveness probes support GET and HEAD without querying database or queue', 
 test('HTTP service serves static pages and the API contract', async (context) => {
   const createdCommands = []
   const database = {
-    async ready() { return { database: 'app', version: 150000 } },
+    async ready() { return { database: 'app', version: 160000 } },
     async summary() { return { sites: 2, employees: 3, devices: 4 } },
     async meta() { return { sites: [], salaries: [], seating: [], employees: [] } },
     async executeReadOnly(sql) {
@@ -160,5 +160,5 @@ test('HTTP service serves static pages and the API contract', async (context) =>
 
   const ready = await fetch(`${baseUrl}/health/ready`)
   assert.equal(ready.status, 200)
-  assert.equal((await ready.json()).postgresqlMajor, 15)
+  assert.equal((await ready.json()).postgresqlMajor, 16)
 })

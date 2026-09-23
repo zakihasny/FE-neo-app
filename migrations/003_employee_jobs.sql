@@ -4,8 +4,8 @@ DO $$
 DECLARE
   server_major_version integer := current_setting('server_version_num')::integer / 10000;
 BEGIN
-  IF server_major_version <> 15 THEN
-    RAISE EXCEPTION 'FE-neo-app requires PostgreSQL 15; connected server major version is %', server_major_version;
+  IF server_major_version <> 16 THEN
+    RAISE EXCEPTION 'FE-neo-app requires PostgreSQL 16; connected server major version is %', server_major_version;
   END IF;
 END
 $$;

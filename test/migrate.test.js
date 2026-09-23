@@ -4,7 +4,7 @@ import test from 'node:test'
 import { applyMigrations, environmentFlag } from '../server/migrate.js'
 
 class FakeMigrationClient {
-  constructor({ applied = [], version = 150012 } = {}) {
+  constructor({ applied = [], version = 160012 } = {}) {
     this.applied = new Set(applied)
     this.registryExists = applied.length > 0
     this.version = version
@@ -95,12 +95,12 @@ test('applyMigrations skips recorded migrations and optionally seeds sample data
   assert.equal(client.seedRuns, 1)
 })
 
-test('applyMigrations rejects databases other than PostgreSQL 15 before locking', async () => {
-  const client = new FakeMigrationClient({ version: 160001 })
+test('applyMigrations rejects databases other than PostgreSQL 16 before locking', async () => {
+  const client = new FakeMigrationClient({ version: 150001 })
 
   await assert.rejects(
     applyMigrations(client, { logger: silentLogger }),
-    /PostgreSQL 15 diperlukan/
+    /PostgreSQL 16 diperlukan/
   )
   assert.equal(client.locked, false)
 })

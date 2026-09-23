@@ -159,8 +159,8 @@ export class DatabaseService {
         current_database() AS database_name
     `)
     const version = Number(result.rows[0]?.server_version_num || 0)
-    if (Math.floor(version / 10000) !== 15) {
-      throw new Error(`PostgreSQL 15 diperlukan; server version number adalah ${version}.`)
+    if (Math.floor(version / 10000) !== 16) {
+      throw new Error(`PostgreSQL 16 diperlukan; server version number adalah ${version}.`)
     }
     return { database: result.rows[0].database_name, version }
   }
