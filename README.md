@@ -74,7 +74,7 @@ Untuk override port, isi PORT=9090 pada environment runtime dan ubah pemetaan me
 
 ## CI build dan smoke test
 
-Workflow Build and verify berjalan pada push ke enam branch alternatif dan dapat dipanggil manual. Runner memakai Ubuntu 24.04 dan image linux/amd64. Tool, base image, dan digest ada di ci/versions.json; workflow memin Actions menggunakan commit SHA.
+Workflow Build and verify dikonfigurasi untuk push ke enam branch alternatif dan mendeklarasikan workflow_dispatch. GitHub mensyaratkan workflow tersedia pada default branch untuk pemanggilan manual; paket ini tidak menambahkan workflow ke main. Karena itu, dispatch manual dapat mengembalikan 404 sampai workflow terdaftar di default branch. Runner memakai Ubuntu 24.04 dan image linux/amd64. Tool, base image, dan digest ada di ci/versions.json; workflow memin Actions menggunakan commit SHA. Jangan menyatakan build berhasil bila GitHub belum menghasilkan run.
 
 ~~~sh
 node ci/check-source.mjs
