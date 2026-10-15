@@ -1,0 +1,26 @@
+providers = ["node"]
+
+[variables]
+NODE_ENV = "production"
+PORT = "8080"
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+nixpkgsArchive = "e6f23dc08d3624daab7094b701aa3954923c6bbb"
+
+[phases.install]
+dependsOn = ["setup"]
+cmds = [
+  "npm install --global --prefix /opt/pnpm pnpm@11.16.0",
+  "/opt/pnpm/bin/pnpm install --prod --frozen-lockfile"
+]
+
+[phases.build]
+dependsOn = ["install"]
+cmds = [
+  "mkdir -p /opt/fe-runtime/bin && ln -sf \"$(readlink -f \"$(command -v node)\")\" /opt/fe-runtime/bin/node"
+]
+
+[start]
+cmd = "/opt/fe-runtime/bin/node server/index.js"
