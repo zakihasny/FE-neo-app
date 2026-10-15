@@ -1,0 +1,8 @@
+{
+  "method": "earthly",
+  "configFiles": [
+    "Earthfile"
+  ],
+  "platform": "linux/amd64",
+  "defaultPort": 8080
+}
