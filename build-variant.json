@@ -1,0 +1,9 @@
+{
+  "method": "cloud-native-buildpacks",
+  "configFiles": [
+    "project.toml",
+    "Procfile"
+  ],
+  "platform": "linux/amd64",
+  "defaultPort": 8080
+}

@@ -1,143 +1,92 @@
-# FE NEO App HTTP Service
+# FE NEO App — cloud-native-buildpacks
 
-FE NEO App menyajikan frontend Employee Database Lab dan backend API dari satu HTTP service. Backend membaca PostgreSQL 16 melalui `DATABASE_URL` dan menggunakan NATS JetStream melalui `NATS_URL`. Kedua credential hanya tersedia pada runtime container dan tidak dikirim ke browser.
+Varian build pada branch cloud-native-buildpacks. Branch main tidak diubah. Source dasar: b3ef5c64a6b516a2586fe9ca2d3b196e8fa9c37d.
 
-## Arsitektur
+## Build cloud-native-buildpacks
 
-```text
-Browser -> HTTP service -> PostgreSQL 16 NEO DB
-                        -> NATS JetStream -> command workers -> PostgreSQL 16 NEO DB
-```
+Pack 0.40.9 dan Docker diperlukan. Builder Heroku dipilih karena mendukung pnpm dari packageManager dan pnpm-lock.yaml.
 
-HTTP service melayani halaman dan API dari origin yang sama:
+~~~sh
+pack build fe-neo-app:cloud-native-buildpacks --platform linux/amd64
+~~~
 
-- `/`: ringkasan database.
-- `/query.html`: console `SELECT` read-only dengan timeout dan batas 200 baris.
-- `/input.html`: formulir asynchronous tambah pegawai, site, dan device.
-- `/api/summary`: ringkasan `employee_app.database_summary`.
-- `/api/meta`: referensi site, salary, seating, dan pegawai.
-- `/api/query`: eksekusi query read-only.
-- `/api/employees`: publish command tambah pegawai.
-- `/api/sites`: publish command tambah site.
-- `/api/devices`: publish command tambah device.
-- `/api/jobs/:jobId`: status command.
-- `/healthz`: liveness probe bawaan NEO App (GET/HEAD); alias `/health/live` dan `/api/health/live` tetap didukung.
-- `/health/ready`: readiness probe yang memeriksa PostgreSQL dan NATS.
+project.toml memin builder. CI juga memin run image Heroku dari ci/versions.json. PORT default 8080 ditangani aplikasi; untuk target platform gunakan PORT=8080 dan port service 8080. Procfile mendefinisikan proses web, bukan worker terpisah. Environment build tidak diisi credential DB atau Queue.
 
-## Requirement
+Referensi resmi: https://devcenter.heroku.com/articles/nodejs-support
 
-- NEO DB PostgreSQL 16 yang dapat dijangkau dari HTTP service.
-- Credential pada `DATABASE_URL` memiliki izin membuat schema, table, view, index, dan constraint saat migration pertama. Setelah bootstrap, gunakan credential dengan privilege yang lebih sempit bila lifecycle NEO App memungkinkan rotasi binding.
-- NEO Queue dengan JetStream aktif. Saat startup, service otomatis membuat resource berikut bila belum ada:
+## Kontrak aplikasi
 
-```text
-Stream: NEO_APP_COMMANDS
-Subjects: employee.create.v1, site.create.v1, device.create.v1
-Durable pull consumers:
-- neo-app-employee-writer-v1
-- neo-app-site-writer-v1
-- neo-app-device-writer-v1
-Acknowledgement: explicit
-Retention: work queue
-Storage: file
-```
+- Node.js 22.x dan pnpm 11.16.0; dependency memakai frozen lockfile.
+- HTTP listen pada 0.0.0.0, default 8080; PORT dapat mengoverride default.
+- PostgreSQL harus major 16; PostgreSQL 15 sengaja ditolak.
+- NATS JetStream memerlukan izin bootstrap stream NEO_APP_COMMANDS dan tiga durable consumer.
+- Frontend, API, schema, migration, dan worker tetap sama dengan main.
+- Worker employee/site/device berjalan di proses web, bukan service worker terpisah.
+- Branch ini tidak menyimpan file bernama Dockerfile. Artefak internal builder tetap temporary dan tidak di-commit.
 
-Bootstrap Queue bersifat idempotent dan aman untuk beberapa replica yang startup bersamaan. Credential `NATS_URL` harus memiliki izin membaca, membuat, dan memperbarui stream serta membuat consumer. Stream lama yang hanya memiliki subject pegawai otomatis ditambahkan subject site dan device tanpa menghapus subject lain. Startup gagal dengan pesan yang jelas bila resource bernama sama memiliki retention, storage, atau konfigurasi consumer yang tidak kompatibel.
+## Variabel runtime
 
-- Endpoint PostgreSQL dan NATS dapat dijangkau dari pod HTTP service.
-- TLS CA PostgreSQL yang dibutuhkan sudah tersedia dalam trust store atau mounted secret container.
+| Nama | Pengaturan |
+|---|---|
+| DATABASE_URL | Wajib; connection string PostgreSQL 16, hanya backend |
+| NATS_URL | Wajib; endpoint NATS JetStream, hanya backend |
+| PORT | Opsional; default 8080 |
+| NODE_ENV | production |
+| RUN_DB_MIGRATIONS | true secara default |
+| SEED_SAMPLE_DATA | false secara default; aktifkan hanya untuk DB demo baru |
 
-## Environment
+Salin .env.example menjadi .env hanya untuk penggunaan lokal, lalu isi credential milik sendiri. Jangan commit .env, credential, atau connection string. Tidak ada credential layanan existing dalam CI maupun image. TLS dan CA PostgreSQL mengikuti binding/runtime target; jangan menonaktifkan verifikasi TLS sebagai workaround.
 
-Hanya dua service binding yang wajib:
+Aplikasi belum mengimplementasikan autentikasi pengguna: gunakan data dummy atau lindungi ingress sebelum menyimpan data asli.
 
-```dotenv
-DATABASE_URL=postgresql://username:password@neo-db-host:5432/app?sslmode=verify-full
-NATS_URL=nats://token@message-neo-app:4222
-```
+## Menjalankan source lokal
 
-Untuk NEO Queue dengan token authentication, token ditempatkan sebelum `@`. Format `nats://username:password@host:port` dari service binding NEO App juga didukung. Service memisahkan credential dari endpoint dan meneruskannya melalui opsi autentikasi NATS; credential tidak dicetak ke log.
-
-`PORT` bersifat opsional dan default ke `80`, sesuai port service bawaan pada dashboard NEO App. Nilai `PORT` yang sudah diatur pada runtime tetap mengoverride default ini. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
-
-Untuk deployment GitHub atau Local source dengan port service `80` dan health check `/healthz`, gunakan source/image terbaru lalu redeploy. Dockerfile menggunakan port `80` dan health check `/healthz`. `/healthz` menunjukkan proses HTTP hidup, sedangkan `/health/ready` memeriksa kesiapan database dan queue. HTTP baru dibuka setelah startup migration selesai.
-
-Container tetap berjalan sebagai user `node`. Dockerfile menambahkan file capability `NET_BIND_SERVICE` pada executable Node untuk membuka port rendah. Runtime Linux harus mengizinkan capability tersebut atau port `80` untuk non-root. Jika kebijakan platform memblokirnya (misalnya capability dibuang atau file capability tidak dapat diterapkan), perubahan source saja tidak cukup; log akan menunjukkan `EACCES`/`EPERM` dan konfigurasi runtime perlu diperiksa. Build Railpack yang tidak memakai Dockerfile mengikuti kebijakan user/capability dari builder dan platform.
-
-Startup migration aktif secara default. Dua kontrol non-secret berikut bersifat opsional:
-
-```dotenv
-RUN_DB_MIGRATIONS=true
-SEED_SAMPLE_DATA=false
-```
-
-Jangan aktifkan sample seed pada production database.
-
-## Migration
-
-Sebelum membuka HTTP port, container menunggu NEO DB, mengambil PostgreSQL advisory lock, dan menjalankan migration yang belum tercatat pada `employee_app.schema_migrations`:
-
-```text
-001_schema.sql
-002_views.sql
-003_employee_jobs.sql
-004_command_jobs.sql
-```
-
-Lock mencegah beberapa replica menjalankan migration bersamaan. Jika NEO DB belum dapat dijangkau, startup mencoba kembali maksimal 30 kali dengan interval dua detik. Service gagal start bila koneksi atau migration tetap gagal.
-
-Migration juga dapat dijalankan sebagai command terpisah:
-
-```bash
-pnpm migrate
-```
-
-Set `RUN_DB_MIGRATIONS=false` hanya jika migration dikelola oleh pipeline terpisah.
-
-## Local Development
-
-```bash
-corepack enable
-corepack prepare pnpm@11.16.0 --activate
+~~~sh
+npm install --global pnpm@11.16.0
 pnpm install --frozen-lockfile
+pnpm check
 pnpm test
-export PORT=8080
 pnpm start
-```
+~~~
 
-Buka `http://127.0.0.1:8080/`. Pada PowerShell, gunakan `$env:PORT = '8080'` untuk menggantikan `export PORT=8080`.
+Set DATABASE_URL dan NATS_URL pada environment shell terlebih dahulu. Aplikasi tidak otomatis membaca file .env ketika dijalankan langsung menggunakan Node.
 
-## Docker
+## Menjalankan image
 
-Build image:
+Gunakan nama image yang dihasilkan metode branch ini:
 
-```bash
-docker build -t fe-neo-app:1.3.0 .
-```
+~~~sh
+docker run --rm --env-file .env -p 8080:8080 fe-neo-app:ci
+~~~
 
-Jalankan menggunakan runtime secrets:
+Untuk override port, isi PORT=9090 pada environment runtime dan ubah pemetaan menjadi 9090:9090. Untuk Podman, gunakan perintah run milik Podman dengan opsi yang sama.
 
-```bash
-docker run --rm \
-  --name fe-neo-app \
-  -p 8080:80 \
-  -e DATABASE_URL="$DATABASE_URL" \
-  -e NATS_URL="$NATS_URL" \
-  fe-neo-app:1.3.0
-```
+## Health, API, dan migration
 
-Verifikasi:
+- GET/HEAD /healthz: liveness; tidak membuktikan kesiapan dependency.
+- GET /health/ready: PostgreSQL 16 dan Queue siap.
+- Halaman /, /input.html, /query.html; asset pada /assets/.
+- API summary/meta/query, sites/employees/devices, dan jobs mempertahankan kontrak main.
+- Empat migration 001–004 berjalan sebelum HTTP dibuka, dengan advisory lock dan registry migration persisten.
+- Berikan startup grace minimal 240 detik. Atur probe melalui runtime/platform; metadata HEALTHCHECK image tidak selalu digunakan oleh orchestrator.
+- Setelah bootstrap DB demo, set SEED_SAMPLE_DATA=false dan restart aplikasi.
 
-```bash
-curl --fail http://127.0.0.1:8080/healthz
-curl --fail http://127.0.0.1:8080/health/ready
-curl --fail http://127.0.0.1:8080/api/summary
-```
+## CI build dan smoke test
 
-## Processing Model
+Workflow Build and verify berjalan pada push ke enam branch alternatif dan dapat dipanggil manual. Runner memakai Ubuntu 24.04 dan image linux/amd64. Tool, base image, dan digest ada di ci/versions.json; workflow memin Actions menggunakan commit SHA.
 
-`POST /api/employees`, `POST /api/sites`, dan `POST /api/devices` membuat job persisten pada `employee_app.command_jobs`, publish command dengan `Nats-Msg-Id`, dan mengembalikan HTTP `202`. Setiap jenis data memakai subject dan durable pull consumer terpisah. Worker memvalidasi relasi, menyimpan data dalam transaksi PostgreSQL, memperbarui job, lalu mengirim acknowledgement. Unique idempotency key dan pemeriksaan status `completed` mencegah redelivery membuat data ganda. Saat menambah device, site otomatis mengikuti site pegawai dan divalidasi kembali oleh worker.
+~~~sh
+node ci/check-source.mjs
+node ci/build-image.mjs
+node ci/smoke.mjs
+~~~
 
-Query console hanya menerima satu `SELECT` atau read-only CTE. Backend menolak keyword write/admin dan menjalankan query di dalam transaksi `READ ONLY` dengan `statement_timeout` lima detik. Tetap lindungi halaman ini dengan authentication dan authorization pada ingress atau application gateway.
+Helper build mengambil source bersih dari commit HEAD, bukan file lokal yang belum di-commit. Semua metode diuji dengan service PostgreSQL 16 dan NATS JetStream sementara, credential acak, jaringan terisolasi, dan runtime non-root. CI memeriksa halaman/asset, health, migration, seed demo, tiga jenis job, idempotency, read-only SQL, persistensi setelah restart, dan PORT=9090. Resource CI dibersihkan setelah pengujian; log error disanitasi.
 
-Visual system mengikuti BGN Web Design System v1.3.22 pada `skills.md` dan token canonical pada `assets/tokens.css`.
+Build tools belum tentu tersedia pada Windows lokal. Build image hanya dinyatakan terverifikasi setelah job CI berhasil. CI tidak push image ke registry, tidak deploy NEO App, dan tidak memakai secret layanan existing.
+
+## Penggunaan di NEO App
+
+Kemampuan menghasilkan image tidak otomatis berarti metode tersebut didukung sebagai build native platform. Untuk Railpack, pilih mode native Railpack bila tersedia. Untuk metode lain yang dukungan nativenya belum diverifikasi, build image menggunakan tool terkait lalu gunakan alur prebuilt image setelah image dipublikasikan secara terpisah oleh user.
+
+Saat deployment berikutnya, gunakan port service 8080, binding PostgreSQL 16 dan Queue, serta health endpoint di atas. Jangan arahkan varian PostgreSQL 16 ini ke DB PostgreSQL 15 dari deployment ZIP sebelumnya. Pembuatan resource, publikasi registry, dan deployment tidak termasuk perubahan branch ini.
