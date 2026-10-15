@@ -1,0 +1,50 @@
+apiVersion: jib/v1alpha1
+kind: BuildFile
+from:
+  image: "node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392"
+  platforms:
+    - architecture: amd64
+      os: linux
+format: Docker
+user: "1000:1000"
+workingDirectory: /app
+environment:
+  NODE_ENV: production
+  PORT: "8080"
+exposedPorts:
+  - "8080"
+entrypoint:
+  - node
+  - server/index.js
+cmd: []
+layers:
+  properties:
+    filePermissions: "644"
+    directoryPermissions: "755"
+    user: "1000"
+    group: "1000"
+  entries:
+    - name: production-dependencies
+      files:
+        - src: .build/jib/node_modules
+          dest: /app/node_modules
+    - name: application
+      files:
+        - src: .build/jib/server
+          dest: /app/server
+        - src: .build/jib/migrations
+          dest: /app/migrations
+        - src: .build/jib/seeds
+          dest: /app/seeds
+        - src: .build/jib/assets
+          dest: /app/assets
+        - src: .build/jib/package.json
+          dest: /app/package.json
+        - src: .build/jib/pnpm-lock.yaml
+          dest: /app/pnpm-lock.yaml
+        - src: .build/jib/index.html
+          dest: /app/index.html
+        - src: .build/jib/input.html
+          dest: /app/input.html
+        - src: .build/jib/query.html
+          dest: /app/query.html
