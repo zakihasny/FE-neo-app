@@ -13,3 +13,9 @@ Thumbs.db
 node_modules/
 coverage/
 *.log
+
+# Builder staging/output is never source.
+.build/
+.nixpacks/
+railpack-plan.json
+railpack-info.json

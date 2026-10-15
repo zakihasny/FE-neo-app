@@ -5,6 +5,7 @@ import { DatabaseService } from './database.js'
 import { createHttpServer } from './http.js'
 import { environmentFlag, runMigrations } from './migrate.js'
 import { QueueService } from './queue.js'
+import { runtimePort } from './runtime.js'
 
 function requireEnvironment(name) {
   const value = process.env[name]?.trim()
@@ -14,8 +15,7 @@ function requireEnvironment(name) {
 
 const databaseUrl = requireEnvironment('DATABASE_URL')
 const natsUrl = requireEnvironment('NATS_URL')
-const port = Number(process.env.PORT || 80)
-if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT tidak valid.')
+const port = runtimePort()
 
 await runMigrations(databaseUrl, {
   enabled: environmentFlag(process.env.RUN_DB_MIGRATIONS, true),

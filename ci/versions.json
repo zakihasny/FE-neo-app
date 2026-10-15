@@ -1,0 +1,41 @@
+{
+  "platform": "linux/amd64",
+  "node": "22.x",
+  "pnpm": "11.16.0",
+  "images": {
+    "node": "node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392",
+    "postgres": "postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+    "nats": "nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00",
+    "podman": "quay.io/podman/stable:v5.6.2@sha256:b4bdf91d79ef0396ec1c070faa395b8e879fd4da5b161a7522882619026d5fa4",
+    "buildkit": "moby/buildkit:v0.24.0@sha256:6eceb8971ce4fceb3daca562832642706238b7eea72941fcf9896c93c3c4a53e",
+    "cnbBuilder": "heroku/builder:24@sha256:0bc86c75ed01c50f09055225bcff4fde00d6e32ae8cc8a4b1c831a4d59df78d4",
+    "cnbRun": "heroku/heroku:24@sha256:7c45eddef82f503b9fad462602a6aa8559b88f484687138dc118557d7ff5cfb1"
+  },
+  "tools": {
+    "railpack": {
+      "version": "0.41.0",
+      "url": "https://github.com/railwayapp/railpack/releases/download/v0.41.0/railpack-v0.41.0-x86_64-unknown-linux-musl.tar.gz",
+      "sha256": "ef88b70f6cf75cf5337333957d2fec6f6e0f6b581e4dd88c83a69f6fb826a154"
+    },
+    "nixpacks": {
+      "version": "1.41.0",
+      "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.41.0/nixpacks-v1.41.0-x86_64-unknown-linux-musl.tar.gz",
+      "sha256": "0f55de7874507b9cf7502113120bd96f2ab6979f78d10eaf2eb2ade9207b3af6"
+    },
+    "pack": {
+      "version": "0.40.9",
+      "url": "https://github.com/buildpacks/pack/releases/download/v0.40.9/pack-v0.40.9-linux.tgz",
+      "sha256": "dc0ee1e931cf8a106d7555a01a214864f9acb60b77adf15d69b74df4404758e9"
+    },
+    "earthly": {
+      "version": "0.8.16",
+      "url": "https://github.com/earthly/earthly/releases/download/v0.8.16/earthly-linux-amd64",
+      "sha256": "3ef3163c81bdd10e28ab31cd96e35c1856d97478c8ce7f20954b8bea7a598404"
+    },
+    "jib": {
+      "version": "0.13.0",
+      "url": "https://github.com/GoogleContainerTools/jib/releases/download/v0.13.0-cli/jib-jre-0.13.0.zip",
+      "sha256": "e8f6a4766221e6d3817226b8ee14792c4553e5605e79a48558f0d3bef21e0461"
+    }
+  }
+}

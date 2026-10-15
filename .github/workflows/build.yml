@@ -1,0 +1,53 @@
+name: Build and verify
+
+on:
+  push:
+    branches:
+      - railpack
+      - nixpacks
+      - containerfile
+      - cloud-native-buildpacks
+      - earthly
+      - jib
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TEST_IMAGE: fe-neo-app:ci
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.x
+      - name: Set up Java for the Jib CLI only
+        if: hashFiles('jib.yaml') != ''
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify source contract
+        run: node ci/check-source.mjs
+      - name: Install pinned pnpm and dependencies
+        run: |
+          npm install --global pnpm@11.16.0
+          node --version
+          pnpm --version
+          pnpm install --frozen-lockfile
+      - name: Syntax and unit tests
+        run: |
+          pnpm check
+          pnpm test
+      - name: Build using this branch's builder
+        run: node ci/build-image.mjs
+      - name: Verify image with disposable PostgreSQL and JetStream
+        run: node ci/smoke.mjs
