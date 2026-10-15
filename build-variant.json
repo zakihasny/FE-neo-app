@@ -1,0 +1,8 @@
+{
+  "method": "railpack",
+  "configFiles": [
+    "railpack.json"
+  ],
+  "platform": "linux/amd64",
+  "defaultPort": 8080
+}

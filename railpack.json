@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "steps": {
+    "install": {
+      "commands": [
+        "pnpm install --prod --frozen-lockfile"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "node server/index.js",
+    "variables": {
+      "NODE_ENV": "production",
+      "PORT": "8080"
+    }
+  }
+}
