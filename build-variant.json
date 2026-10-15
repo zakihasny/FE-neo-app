@@ -1,0 +1,8 @@
+{
+  "method": "containerfile",
+  "configFiles": [
+    "Containerfile"
+  ],
+  "platform": "linux/amd64",
+  "defaultPort": 8080
+}
