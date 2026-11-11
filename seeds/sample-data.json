@@ -1,0 +1,126 @@
+{
+  "sites": [
+    {
+      "site_id": 1,
+      "site_name": "Head Office",
+      "city": "Jakarta",
+      "address": "Demo Street 1"
+    },
+    {
+      "site_id": 2,
+      "site_name": "Branch Office",
+      "city": "Bandung",
+      "address": "Demo Street 2"
+    }
+  ],
+  "salaries": [
+    {
+      "salary_id": 1,
+      "salary_grade": "Junior",
+      "basic_salary": "6000000.00",
+      "allowance": "750000.00"
+    },
+    {
+      "salary_id": 2,
+      "salary_grade": "Middle",
+      "basic_salary": "10000000.00",
+      "allowance": "1250000.00"
+    },
+    {
+      "salary_id": 3,
+      "salary_grade": "Senior",
+      "basic_salary": "15000000.00",
+      "allowance": "2000000.00"
+    }
+  ],
+  "seating": [
+    {
+      "seating_id": 1,
+      "site_id": 1,
+      "floor_number": "10",
+      "seat_code": "JKT-10-A01"
+    },
+    {
+      "seating_id": 2,
+      "site_id": 1,
+      "floor_number": "10",
+      "seat_code": "JKT-10-A02"
+    },
+    {
+      "seating_id": 3,
+      "site_id": 2,
+      "floor_number": "3",
+      "seat_code": "BDG-03-B01"
+    }
+  ],
+  "employees": [
+    {
+      "employee_id": 1,
+      "site_id": 1,
+      "salary_id": 1,
+      "seating_id": 1,
+      "full_name": "Demo Ada",
+      "email": "demo1@example.test",
+      "job_title": "Frontend Developer",
+      "hired_date": "2026-01-15"
+    },
+    {
+      "employee_id": 2,
+      "site_id": 1,
+      "salary_id": 2,
+      "seating_id": 2,
+      "full_name": "Demo Bima",
+      "email": "demo2@example.test",
+      "job_title": "Backend Developer",
+      "hired_date": "2026-01-15"
+    },
+    {
+      "employee_id": 3,
+      "site_id": 2,
+      "salary_id": 3,
+      "seating_id": 3,
+      "full_name": "Demo Citra",
+      "email": "demo3@example.test",
+      "job_title": "Project Manager",
+      "hired_date": "2026-01-15"
+    }
+  ],
+  "employee_devices": [
+    {
+      "employee_device_id": 1,
+      "employee_id": 1,
+      "site_id": 1,
+      "device_type": "Laptop",
+      "device_brand": "Lenovo",
+      "serial_number": "DEMO-DEVICE-0001",
+      "assigned_date": "2026-01-16"
+    },
+    {
+      "employee_device_id": 2,
+      "employee_id": 2,
+      "site_id": 1,
+      "device_type": "Laptop",
+      "device_brand": "Dell",
+      "serial_number": "DEMO-DEVICE-0002",
+      "assigned_date": "2026-01-16"
+    },
+    {
+      "employee_device_id": 3,
+      "employee_id": 3,
+      "site_id": 2,
+      "device_type": "Laptop",
+      "device_brand": "HP",
+      "serial_number": "DEMO-DEVICE-0003",
+      "assigned_date": "2026-01-16"
+    },
+    {
+      "employee_device_id": 4,
+      "employee_id": 1,
+      "site_id": 1,
+      "device_type": "Monitor",
+      "device_brand": "LG",
+      "serial_number": "DEMO-DEVICE-0004",
+      "assigned_date": "2026-01-16"
+    }
+  ]
+}

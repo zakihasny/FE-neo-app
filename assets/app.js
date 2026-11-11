@@ -94,9 +94,9 @@
   }
 
   var queryExamples = {
-    employees: "SELECT\n  e.employee_id,\n  e.full_name,\n  e.job_title,\n  s.site_name,\n  st.seat_code,\n  sal.salary_grade\nFROM employee_app.employees AS e\nJOIN employee_app.sites AS s ON s.site_id = e.site_id\nJOIN employee_app.seating AS st ON st.seating_id = e.seating_id\nJOIN employee_app.salaries AS sal ON sal.salary_id = e.salary_id\nORDER BY e.employee_id\nLIMIT 200;",
-    devices: "SELECT\n  e.full_name,\n  d.device_type,\n  d.device_brand,\n  d.serial_number,\n  d.assigned_date\nFROM employee_app.employees AS e\nJOIN employee_app.employee_devices AS d ON d.employee_id = e.employee_id\nORDER BY e.full_name, d.device_type\nLIMIT 200;",
-    sites: "SELECT\n  s.site_name,\n  s.city,\n  count(e.employee_id) AS employee_count\nFROM employee_app.sites AS s\nLEFT JOIN employee_app.employees AS e ON e.site_id = s.site_id\nGROUP BY s.site_id, s.site_name, s.city\nORDER BY employee_count DESC\nLIMIT 200;"
+    employees: "SELECT\n  e.employee_id,\n  e.full_name,\n  e.job_title,\n  s.site_name,\n  st.seat_code,\n  sal.salary_grade\nFROM employees AS e\nJOIN sites AS s ON s.site_id = e.site_id\nJOIN seating AS st ON st.seating_id = e.seating_id\nJOIN salaries AS sal ON sal.salary_id = e.salary_id\nORDER BY e.employee_id\nLIMIT 200;",
+    devices: "SELECT\n  e.full_name,\n  d.device_type,\n  d.device_brand,\n  d.serial_number,\n  d.assigned_date\nFROM employees AS e\nJOIN employee_devices AS d ON d.employee_id = e.employee_id\nORDER BY e.full_name, d.device_type\nLIMIT 200;",
+    sites: "SELECT\n  s.site_name,\n  s.city,\n  count(e.employee_id) AS employee_count\nFROM sites AS s\nLEFT JOIN employees AS e ON e.site_id = s.site_id\nGROUP BY s.site_id, s.site_name, s.city\nORDER BY employee_count DESC\nLIMIT 200;"
   }
 
   function formatCell(value) {

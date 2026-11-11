@@ -93,3 +93,11 @@ test('validateDeviceInput normalizes device fields and requires its command type
     ...input
   }), /resource type/i)
 })
+
+ test('calendar dates and database ID range are consistent across engines', () => {
+  const input = {siteName:'Example',city:'Jakarta',address:'Example street',idempotencyKey:'unique-test-key'}
+  assert.ok(validateSiteInput(input))
+  const employee = {fullName:'Example User',email:'example@example.test',jobTitle:'Engineer',hiredDate:'2026-02-31',siteId:1,salaryId:1,seatingId:1,idempotencyKey:'unique-test-key'}
+  assert.throws(()=>validateEmployeeInput(employee))
+  assert.throws(()=>validateEmployeeInput({...employee,hiredDate:'2026-02-28',siteId:2147483648}))
+ })

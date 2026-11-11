@@ -1,0 +1,52 @@
+# Isolated local/CI fixtures only. These credentials are not for production.
+services:
+
+  database:
+    image: mariadb:11.4.13
+    environment:
+      MARIADB_ROOT_PASSWORD: ci-root-not-for-production
+      MARIADB_ROOT_HOST: '%'
+      MARIADB_DATABASE: employee_test
+      MARIADB_USER: app
+      MARIADB_PASSWORD: ci-password-not-for-production
+    ports: ['127.0.0.1:13306:3306']
+    volumes: [database-data:/var/lib/mysql]
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  queue:
+    image: nats:2.12.11-alpine
+    command: ['-js', '-sd', '/data', '--user', 'ci', '--pass', 'ci-nats-not-for-production']
+    ports: ['127.0.0.1:14222:4222']
+    volumes: [queue-data:/data]
+  app: &app
+    build: .
+    image: fe-db-variant-ci:local
+    environment:
+      DATABASE_URL: mysql://app:ci-password-not-for-production@database:3306/employee_test
+      NATS_URL: nats://ci:ci-nats-not-for-production@queue:4222
+      NODE_ENV: production
+      PORT: '8080'
+      RUN_DB_MIGRATIONS: 'true'
+      SEED_SAMPLE_DATA: 'true'
+    depends_on:
+      database:
+        condition: service_healthy
+      queue:
+        condition: service_started
+    ports: ['127.0.0.1:18080:8080']
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 10s
+  app2:
+    <<: *app
+    ports: []
+volumes:
+  database-data:
+  queue-data:
