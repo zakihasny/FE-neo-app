@@ -1,0 +1,37 @@
+name: Database variant integration
+on:
+  push:
+    branches: [db-mysql]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.16.0 --activate
+          pnpm install --frozen-lockfile
+      - name: Syntax and unit tests
+        run: |
+          pnpm check
+          pnpm test
+      - name: Build and start isolated fixtures
+        run: docker compose -f compose.test.yaml up --build -d
+      - name: Live integration and restart persistence
+        env:
+          RUN_INTEGRATION: 'true'
+        run: pnpm test:integration
+      - name: Sanitized diagnostic logs
+        if: failure()
+        run: node scripts/ci-logs.mjs
+      - name: Remove isolated fixtures
+        if: always()
+        run: docker compose -f compose.test.yaml down -v --remove-orphans

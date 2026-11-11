@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Console query read-only untuk NEO DB PostgreSQL 16.">
+  <meta name="description" content="Console query read-only untuk MySQL 8.4.">
   <title>Query SQL | Employee Database Lab</title>
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,9 +40,9 @@
   <main id="main-content">
     <section class="page-heading page-heading-compact">
       <div class="shell">
-        <p class="eyebrow">PostgreSQL workspace</p>
+        <p class="eyebrow">MySQL 8.4 workspace</p>
         <h1>Query SQL</h1>
-        <p class="heading-copy">Console read-only untuk schema <code>employee_app</code>.</p>
+        <p class="heading-copy">Console read-only untuk the configured database.</p>
       </div>
     </section>
 
@@ -64,10 +64,10 @@
   s.site_name,
   st.seat_code,
   sal.salary_grade
-FROM employee_app.employees AS e
-JOIN employee_app.sites AS s ON s.site_id = e.site_id
-JOIN employee_app.seating AS st ON st.seating_id = e.seating_id
-JOIN employee_app.salaries AS sal ON sal.salary_id = e.salary_id
+FROM employees AS e
+JOIN sites AS s ON s.site_id = e.site_id
+JOIN seating AS st ON st.seating_id = e.seating_id
+JOIN salaries AS sal ON sal.salary_id = e.salary_id
 ORDER BY e.employee_id
 LIMIT 200;</textarea>
           <div class="form-actions">
@@ -85,7 +85,7 @@ LIMIT 200;</textarea>
           </div>
           <div class="policy-block" id="query-policy">
             <h3>Query policy</h3>
-            <p>SELECT, WITH, dan EXPLAIN. Maksimum 200 baris dan satu statement per request.</p>
+            <p>SELECT and read-only WITH queries. Maksimum 200 baris dan satu statement per request.</p>
           </div>
         </aside>
       </div>

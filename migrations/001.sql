@@ -1,0 +1,31 @@
+CREATE TABLE IF NOT EXISTS sites (
+ site_id INT AUTO_INCREMENT PRIMARY KEY, site_name VARCHAR(100) NOT NULL, city VARCHAR(100) NOT NULL, address VARCHAR(255) NOT NULL,
+ normalized_name VARCHAR(100) GENERATED ALWAYS AS (LOWER(site_name)) STORED,
+ normalized_city VARCHAR(100) GENERATED ALWAYS AS (LOWER(city)) STORED,
+ UNIQUE KEY sites_name_city (normalized_name,normalized_city)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+-- next-statement
+CREATE TABLE IF NOT EXISTS salaries (
+ salary_id INT AUTO_INCREMENT PRIMARY KEY, salary_grade VARCHAR(50) NOT NULL,
+ basic_salary DECIMAL(12,2) NOT NULL CHECK (basic_salary>=0), allowance DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (allowance>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+-- next-statement
+CREATE TABLE IF NOT EXISTS seating (
+ seating_id INT AUTO_INCREMENT PRIMARY KEY, site_id INT NOT NULL, floor_number VARCHAR(20) NOT NULL, seat_code VARCHAR(50) NOT NULL,
+ FOREIGN KEY (site_id) REFERENCES sites(site_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+-- next-statement
+CREATE TABLE IF NOT EXISTS employees (
+ employee_id INT AUTO_INCREMENT PRIMARY KEY, site_id INT NOT NULL, salary_id INT NOT NULL, seating_id INT NOT NULL,
+ full_name VARCHAR(120) NOT NULL, email VARCHAR(120) NOT NULL UNIQUE, job_title VARCHAR(100) NOT NULL, hired_date DATE NOT NULL,
+ FOREIGN KEY (site_id) REFERENCES sites(site_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+ FOREIGN KEY (salary_id) REFERENCES salaries(salary_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+ FOREIGN KEY (seating_id) REFERENCES seating(seating_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+-- next-statement
+CREATE TABLE IF NOT EXISTS employee_devices (
+ employee_device_id INT AUTO_INCREMENT PRIMARY KEY, employee_id INT NOT NULL, site_id INT NOT NULL,
+ device_type VARCHAR(50) NOT NULL, device_brand VARCHAR(50) NOT NULL, serial_number VARCHAR(100) NOT NULL UNIQUE, assigned_date DATE NOT NULL,
+ FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON UPDATE CASCADE ON DELETE CASCADE,
+ FOREIGN KEY (site_id) REFERENCES sites(site_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
