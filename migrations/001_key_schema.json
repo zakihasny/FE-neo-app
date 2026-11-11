@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "engine": "redis",
+  "namespace": "REDIS_KEY_PREFIX",
+  "storage": [
+    "hashes",
+    "sorted sets",
+    "counters",
+    "uniqueness indexes"
+  ],
+  "expiry": false
+}

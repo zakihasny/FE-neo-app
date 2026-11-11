@@ -1,7 +1,7 @@
 import { environmentFlag, runMigrations } from './migrate.js'
 
-const databaseUrl = process.env.DATABASE_URL?.trim()
-if (!databaseUrl) throw new Error('DATABASE_URL wajib diisi pada runtime environment.')
+const databaseUrl = process.env.REDIS_URL?.trim()
+if (!databaseUrl) throw new Error('REDIS_URL wajib diisi pada runtime environment.')
 
 await runMigrations(databaseUrl, {
   enabled: environmentFlag(process.env.RUN_DB_MIGRATIONS, true),

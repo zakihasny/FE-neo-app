@@ -93,11 +93,14 @@
     }
   }
 
-  var queryExamples = {
-    employees: "SELECT\n  e.employee_id,\n  e.full_name,\n  e.job_title,\n  s.site_name,\n  st.seat_code,\n  sal.salary_grade\nFROM employee_app.employees AS e\nJOIN employee_app.sites AS s ON s.site_id = e.site_id\nJOIN employee_app.seating AS st ON st.seating_id = e.seating_id\nJOIN employee_app.salaries AS sal ON sal.salary_id = e.salary_id\nORDER BY e.employee_id\nLIMIT 200;",
-    devices: "SELECT\n  e.full_name,\n  d.device_type,\n  d.device_brand,\n  d.serial_number,\n  d.assigned_date\nFROM employee_app.employees AS e\nJOIN employee_app.employee_devices AS d ON d.employee_id = e.employee_id\nORDER BY e.full_name, d.device_type\nLIMIT 200;",
-    sites: "SELECT\n  s.site_name,\n  s.city,\n  count(e.employee_id) AS employee_count\nFROM employee_app.sites AS s\nLEFT JOIN employee_app.employees AS e ON e.site_id = s.site_id\nGROUP BY s.site_id, s.site_name, s.city\nORDER BY employee_count DESC\nLIMIT 200;"
+  function redisExamples(prefix) {
+    return {
+      employees: JSON.stringify(['ZRANGE', prefix + ':ids:employees', '0', '199']),
+      devices: JSON.stringify(['ZRANGE', prefix + ':ids:devices', '0', '199']),
+      sites: JSON.stringify(['HGETALL', prefix + ':site:1'])
+    }
   }
+  var queryExamples = redisExamples('fe-neo-app')
 
   function formatCell(value) {
     if (value === null) return 'NULL'
@@ -149,9 +152,13 @@
 
   function initializeQuery() {
     var form = document.getElementById('query-form')
-    var editor = document.getElementById('sql-editor')
+    var editor = document.getElementById('command-editor')
     var button = document.getElementById('run-query')
     var errorBox = document.getElementById('query-error')
+    apiRequest('health/ready').then(function (info) {
+      queryExamples = redisExamples(info.database)
+      editor.value = queryExamples.employees
+    }).catch(function () {})
 
     document.querySelectorAll('[data-query-example]').forEach(function (exampleButton) {
       exampleButton.addEventListener('click', function () {
@@ -170,7 +177,7 @@
         var result = await apiRequest('query', {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ sql: editor.value })
+          body: JSON.stringify({ command: JSON.parse(editor.value) })
         })
         renderQueryResult(result)
         setApiStatus('connected', 'API terhubung')

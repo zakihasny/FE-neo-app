@@ -1,143 +1,90 @@
-# FE NEO App HTTP Service
+# Employee Database Lab — Redis variant
 
-FE NEO App menyajikan frontend Employee Database Lab dan backend API dari satu HTTP service. Backend membaca PostgreSQL 16 melalui `DATABASE_URL` dan menggunakan NATS JetStream melalui `NATS_URL`. Kedua credential hanya tersedia pada runtime container dan tidak dikirim ke browser.
+Branch **`db-redis`** replaces the PostgreSQL runtime dependency with **Redis 8.2**, using **redis@6.3.1**. It targets a fresh store; it does not convert existing PostgreSQL data. Node.js 22+ and pnpm 11.16.0 are required; the retained Dockerfile uses Node.js 24.
 
-## Arsitektur
+## Architecture
 
-```text
-Browser -> HTTP service -> PostgreSQL 16 NEO DB
-                        -> NATS JetStream -> command workers -> PostgreSQL 16 NEO DB
-```
-
-HTTP service melayani halaman dan API dari origin yang sama:
-
-- `/`: ringkasan database.
-- `/query.html`: console `SELECT` read-only dengan timeout dan batas 200 baris.
-- `/input.html`: formulir asynchronous tambah pegawai, site, dan device.
-- `/api/summary`: ringkasan `employee_app.database_summary`.
-- `/api/meta`: referensi site, salary, seating, dan pegawai.
-- `/api/query`: eksekusi query read-only.
-- `/api/employees`: publish command tambah pegawai.
-- `/api/sites`: publish command tambah site.
-- `/api/devices`: publish command tambah device.
-- `/api/jobs/:jobId`: status command.
-- `/healthz`: liveness probe bawaan NEO App (GET/HEAD); alias `/health/live` dan `/api/health/live` tetap didukung.
-- `/health/ready`: readiness probe yang memeriksa PostgreSQL dan NATS.
-
-## Requirement
-
-- NEO DB PostgreSQL 16 yang dapat dijangkau dari HTTP service.
-- Credential pada `DATABASE_URL` memiliki izin membuat schema, table, view, index, dan constraint saat migration pertama. Setelah bootstrap, gunakan credential dengan privilege yang lebih sempit bila lifecycle NEO App memungkinkan rotasi binding.
-- NEO Queue dengan JetStream aktif. Saat startup, service otomatis membuat resource berikut bila belum ada:
+The same process serves three pages and the API, publishes asynchronous commands to NATS JetStream, and runs the three command consumers:
 
 ```text
-Stream: NEO_APP_COMMANDS
-Subjects: employee.create.v1, site.create.v1, device.create.v1
-Durable pull consumers:
-- neo-app-employee-writer-v1
-- neo-app-site-writer-v1
-- neo-app-device-writer-v1
-Acknowledgement: explicit
-Retention: work queue
-Storage: file
+Browser -> Web/API -> Redis: persistent jobs
+                  -> NATS JetStream -> command consumers -> Redis: entities + job results
 ```
 
-Bootstrap Queue bersifat idempotent dan aman untuk beberapa replica yang startup bersamaan. Credential `NATS_URL` harus memiliki izin membaca, membuat, dan memperbarui stream serta membuat consumer. Stream lama yang hanya memiliki subject pegawai otomatis ditambahkan subject site dan device tanpa menghapus subject lain. Startup gagal dengan pesan yang jelas bila resource bernama sama memiliki retention, storage, atau konfigurasi consumer yang tidak kompatibel.
+Redis is the sole primary store. Application entities and jobs are hashes, ordered ID indexes are sorted sets, and counters allocate incremental IDs. Uniqueness and relationships are checked by bounded Lua scripts before writes. Entity creation and job completion occur in the same atomic script. Redis scripting does not provide SQL-style rollback; unexpected key-type or counter corruption is rejected before mutation.
 
-- Endpoint PostgreSQL dan NATS dapat dijangkau dari pod HTTP service.
-- TLS CA PostgreSQL yang dibutuhkan sudah tersedia dalam trust store atau mounted secret container.
+NATS remains required. Use a dedicated queue for this application variant; consumers on a shared stream process the same subjects. Retention is work queue, storage is file, and explicit acknowledgements follow persisted completion or a persisted permanent rejection. Database/network failures remain retryable.
 
-## Environment
+## Pages and API
 
-Hanya dua service binding yang wajib:
+- `/`: current site, employee, and device counts.
+- `/input.html`: asynchronous site, employee, and device forms.
+- `/query.html`: read-only Redis command console.
+- `GET /api/summary`, `GET /api/meta`: counts and form references.
+- `POST /api/sites`, `/api/employees`, `/api/devices`: HTTP 202 with a persistent job ID.
+- `GET /api/jobs/:jobId`: queued/processing/completed/failed state and resulting resource ID.
+- `GET/HEAD /healthz`: process liveness without database or Queue checks.
+- `GET/HEAD /health/ready`: HTTP 200 only when storage and Queue are ready; response includes `engine`, `version`, `database`, and `queue`. Dependency failure returns 503. The old `postgresqlMajor` field is removed.
 
-```dotenv
-DATABASE_URL=postgresql://username:password@neo-db-host:5432/app?sslmode=verify-full
-NATS_URL=nats://token@message-neo-app:4222
+The frontend retains the existing design and data-entry fields. IDs remain numeric. A device must belong to its employee's site; a seat must belong to the employee's selected site. Credentials remain server-side. This demo has no application authentication: use synthetic data and add an appropriate access layer before handling private records.
+
+## Runtime variables
+
+| Variable | Requirement/default |
+| --- | --- |
+| `REDIS_URL` | Required Redis connection URL; use `rediss://` for verified TLS. |
+| `REDIS_KEY_PREFIX` | Application namespace, default `fe-neo-app`; do not share it with unrelated applications. |
+| `NATS_URL` | Required `nats://user:password@host:4222` or supported TLS/token endpoint. |
+| `PORT` | Default `80`, overridable; HTTP binds `0.0.0.0`. |
+| `NODE_ENV` | `production` in the Dockerfile. |
+| `RUN_DB_MIGRATIONS` | Default `true`; performs key-schema initialization before HTTP startup. |
+| `SEED_SAMPLE_DATA` | Default `false`; opt in only for a fresh demo store. |
+
+`.env.example` is a template, not an actual credential file. Native `pnpm start` reads process environment variables; it does not automatically load `.env`. Export them or use your runtime's environment/secret injection. URL-encode connection credentials. Never place connection URLs in browser assets or commit real environment files. TLS verification must remain enabled when using encrypted endpoints.
+
+## Bootstrap and sample data
+
+`pnpm migrate` initializes key-schema version 1 under the configured prefix; it never uses `FLUSHDB`, expires records, or resets existing counters. Redis must be **standalone 8.2**, with persistent disk, AOF enabled, `appendfsync always`, and `maxmemory-policy noeviction`. The included test Compose config supplies these settings. Operators must provision equivalent settings for deployment; application startup does not change server-wide configuration. Redis Cluster and a PostgreSQL fallback are not implemented.
+
+Sample data includes two sites, three salary grades, three seats, three employees, and four devices. The seed is marked once and repeat startup does not duplicate it. Enabling seed on a nonempty, unseeded store is rejected rather than overwriting data. Regular data entry requires salary/seating reference rows; those references are provided by the optional sample seed or operator-managed initialization.
+
+## Query console
+
+The query page accepts a JSON command array, for example:
+
+```json
+["HGETALL", "fe-neo-app:employee:1"]
 ```
 
-Untuk NEO Queue dengan token authentication, token ditempatkan sebelum `@`. Format `nats://username:password@host:port` dari service binding NEO App juga didukung. Service memisahkan credential dari endpoint dan meneruskannya melalui opsi autentikasi NATS; credential tidak dicetak ke log.
+`POST /api/query` accepts `{ "command": ["ZRANGE", "fe-neo-app:ids:employees", "0", "199"] }`. Results retain `columns`, `rows`, `rowCount`, and `durationMs`, and return `executedCommand` instead of `executedSql`. SQL input is not accepted on this branch.
 
-`PORT` bersifat opsional dan default ke `80`, sesuai port service bawaan pada dashboard NEO App. Nilai `PORT` yang sudah diatur pada runtime tetap mengoverride default ini. Jangan menaruh nilai credential di Dockerfile, source code, `assets/config.js`, atau Git.
+Allowed commands: `PING`, `TYPE`, `EXISTS`, `GET`, `HGET`, `HMGET`, `HGETALL`, `HLEN`, `SCARD`, `ZCARD`, and `ZRANGE`. Every key must belong to the configured prefix. Reads are capped at 200 rows, string/hash payloads at 64 KiB, and an application deadline of five seconds. Oversized hashes require selecting fields with `HMGET`; ranges must be bounded nonnegative ranks. All other commands, including writes, scripts, administration, and global key scans, are rejected. The backend uses an internal read-only Lua script to check payload bounds before returning values. Query presets obtain the configured prefix from readiness metadata.
 
-Untuk deployment GitHub atau Local source dengan port service `80` dan health check `/healthz`, gunakan source/image terbaru lalu redeploy. Dockerfile menggunakan port `80` dan health check `/healthz`. `/healthz` menunjukkan proses HTTP hidup, sedangkan `/health/ready` memeriksa kesiapan database dan queue. HTTP baru dibuka setelah startup migration selesai.
+## Local and deployment use
 
-Container tetap berjalan sebagai user `node`. Dockerfile menambahkan file capability `NET_BIND_SERVICE` pada executable Node untuk membuka port rendah. Runtime Linux harus mengizinkan capability tersebut atau port `80` untuk non-root. Jika kebijakan platform memblokirnya (misalnya capability dibuang atau file capability tidak dapat diterapkan), perubahan source saja tidak cukup; log akan menunjukkan `EACCES`/`EPERM` dan konfigurasi runtime perlu diperiksa. Build Railpack yang tidak memakai Dockerfile mengikuti kebijakan user/capability dari builder dan platform.
-
-Startup migration aktif secara default. Dua kontrol non-secret berikut bersifat opsional:
-
-```dotenv
-RUN_DB_MIGRATIONS=true
-SEED_SAMPLE_DATA=false
+```sh
+corepack pnpm install --frozen-lockfile
+corepack pnpm check
+corepack pnpm test
+# Export the required runtime variables first; PORT=8080 is convenient locally.
+corepack pnpm start
 ```
 
-Jangan aktifkan sample seed pada production database.
+Build with `docker build -t fe-db-redis:local .`. Run using runtime secrets and the matching Redis/NATS endpoints; do not use test Compose credentials for deployment. The image exposes port 80 by default, starts `node server/index.js`, and retains `/healthz` Docker health checking. Configure platform readiness at `/health/ready` and startup grace of at least 240 seconds. No cloud deployment is performed by the CI workflow.
 
-## Migration
+## Integration tests
 
-Sebelum membuka HTTP port, container menunggu NEO DB, mengambil PostgreSQL advisory lock, dan menjalankan migration yang belum tercatat pada `employee_app.schema_migrations`:
+Docker is required for live integration. `compose.test.yaml` is an isolated fixture with **test-only credentials**, loopback host ports, persistent test volumes, NATS JetStream, and two application instances sharing the same store. The second instance exercises concurrent migrations and command handling. It is not a production deployment template.
 
-```text
-001_schema.sql
-002_views.sql
-003_employee_jobs.sql
-004_command_jobs.sql
+```sh
+docker compose -f compose.test.yaml up --build -d
+RUN_INTEGRATION=true corepack pnpm test:integration
+# Destructive cleanup of this disposable test stack and its volumes only:
+docker compose -f compose.test.yaml down -v --remove-orphans
 ```
 
-Lock mencegah beberapa replica menjalankan migration bersamaan. Jika NEO DB belum dapat dijangkau, startup mencoba kembali maksimal 30 kali dengan interval dua detik. Service gagal start bila koneksi atau migration tetap gagal.
+In PowerShell, set `$env:RUN_INTEGRATION = 'true'` before `corepack pnpm test:integration`. Live tests are skipped unless this flag is enabled. They use fixed loopback fixture endpoints, create synthetic data, and restart the test services. SQL variants additionally create and remove a uniquely named migration-recovery database using test-only administrator access.
 
-Migration juga dapat dijalankan sebagai command terpisah:
+CI runs on pushes to `db-redis` using Ubuntu 24.04, Node.js 24, and pnpm 11.16.0. It checks syntax and unit tests, builds the image, and verifies real storage/Queue workflows, same-key concurrent requests, redelivery, relationship/uniqueness failures, query restrictions, idempotent bootstrap/seed, failed-dependency readiness, and restart persistence. MariaDB also tests native JSON validation and server statement interruption. Logs are sanitized and isolated fixtures are removed after each run. Images are not pushed to a registry.
 
-```bash
-pnpm migrate
-```
-
-Set `RUN_DB_MIGRATIONS=false` hanya jika migration dikelola oleh pipeline terpisah.
-
-## Local Development
-
-```bash
-corepack enable
-corepack prepare pnpm@11.16.0 --activate
-pnpm install --frozen-lockfile
-pnpm test
-export PORT=8080
-pnpm start
-```
-
-Buka `http://127.0.0.1:8080/`. Pada PowerShell, gunakan `$env:PORT = '8080'` untuk menggantikan `export PORT=8080`.
-
-## Docker
-
-Build image:
-
-```bash
-docker build -t fe-neo-app:1.3.0 .
-```
-
-Jalankan menggunakan runtime secrets:
-
-```bash
-docker run --rm \
-  --name fe-neo-app \
-  -p 8080:80 \
-  -e DATABASE_URL="$DATABASE_URL" \
-  -e NATS_URL="$NATS_URL" \
-  fe-neo-app:1.3.0
-```
-
-Verifikasi:
-
-```bash
-curl --fail http://127.0.0.1:8080/healthz
-curl --fail http://127.0.0.1:8080/health/ready
-curl --fail http://127.0.0.1:8080/api/summary
-```
-
-## Processing Model
-
-`POST /api/employees`, `POST /api/sites`, dan `POST /api/devices` membuat job persisten pada `employee_app.command_jobs`, publish command dengan `Nats-Msg-Id`, dan mengembalikan HTTP `202`. Setiap jenis data memakai subject dan durable pull consumer terpisah. Worker memvalidasi relasi, menyimpan data dalam transaksi PostgreSQL, memperbarui job, lalu mengirim acknowledgement. Unique idempotency key dan pemeriksaan status `completed` mencegah redelivery membuat data ganda. Saat menambah device, site otomatis mengikuti site pegawai dan divalidasi kembali oleh worker.
-
-Query console hanya menerima satu `SELECT` atau read-only CTE. Backend menolak keyword write/admin dan menjalankan query di dalam transaksi `READ ONLY` dengan `statement_timeout` lima detik. Tetap lindungi halaman ini dengan authentication dan authorization pada ingress atau application gateway.
-
-Visual system mengikuti BGN Web Design System v1.3.22 pada `skills.md` dan token canonical pada `assets/tokens.css`.
+Unit tests use doubles where appropriate and do not establish real database compatibility. Check the branch's GitHub Actions results for live validation. Docker is not required for syntax/unit checks.

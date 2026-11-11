@@ -226,13 +226,13 @@ export function createHttpServer({ database, queue, publicRoot }) {
       if ((pathname === '/health/ready' || pathname === '/api/health/ready') &&
           (request.method === 'GET' || request.method === 'HEAD')) {
         if (!queue.isReady()) throw new HttpError(503, 'NEO Queue belum siap.')
-        const ready = await database.ready()
-        sendJson(request, response, 200, {
-          status: 'ready',
-          database: ready.database,
-          postgresqlMajor: 16,
-          queue: 'connected'
-        })
+        try {
+          const ready = await database.ready()
+          sendJson(request, response, 200, {
+            status: 'ready', database: ready.database, engine: ready.engine,
+            version: ready.version, queue: 'connected'
+          })
+        } catch { throw new HttpError(503, 'Database is not ready.') }
         return
       }
 
@@ -257,7 +257,7 @@ export function createHttpServer({ database, queue, publicRoot }) {
       if (pathname === '/api/query' && request.method === 'POST') {
         const body = await readJson(request)
         try {
-          sendJson(request, response, 200, await database.executeReadOnly(body?.sql))
+          sendJson(request, response, 200, await database.executeReadOnly(body?.command))
         } catch (error) {
           if (error instanceof HttpError) throw error
           throw new HttpError(400, error instanceof Error ? error.message : 'Query tidak dapat dijalankan.')

@@ -12,7 +12,7 @@ function requireEnvironment(name) {
   return value
 }
 
-const databaseUrl = requireEnvironment('DATABASE_URL')
+const databaseUrl = requireEnvironment('REDIS_URL')
 const natsUrl = requireEnvironment('NATS_URL')
 const port = Number(process.env.PORT || 80)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT tidak valid.')

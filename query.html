@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Console query read-only untuk NEO DB PostgreSQL 16.">
-  <title>Query SQL | Employee Database Lab</title>
+  <meta name="description" content="Console query read-only untuk Redis 8.2.">
+  <title>Redis Console | Employee Database Lab</title>
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,7 +24,7 @@
       </a>
       <nav class="main-nav" id="primary-nav" aria-label="Navigasi utama">
         <a class="nav-link" href="index.html">Ringkasan</a>
-        <a class="nav-link is-active" href="query.html" aria-current="page">Query SQL</a>
+        <a class="nav-link is-active" href="query.html" aria-current="page">Redis Console</a>
         <a class="nav-link" href="input.html">Tambah Data</a>
       </nav>
       <div class="api-indicator" data-api-indicator>
@@ -40,9 +40,9 @@
   <main id="main-content">
     <section class="page-heading page-heading-compact">
       <div class="shell">
-        <p class="eyebrow">PostgreSQL workspace</p>
-        <h1>Query SQL</h1>
-        <p class="heading-copy">Console read-only untuk schema <code>employee_app</code>.</p>
+        <p class="eyebrow">Redis 8.2 workspace</p>
+        <h1>Redis Console</h1>
+        <p class="heading-copy">Read-only command console for the application Redis namespace.</p>
       </div>
     </section>
 
@@ -51,25 +51,13 @@
         <form class="surface query-editor" id="query-form">
           <div class="surface-heading">
             <div>
-              <p class="eyebrow">SQL editor</p>
+              <p class="eyebrow">Redis command editor</p>
               <h2>Statement</h2>
             </div>
             <span class="mode-badge">Read only</span>
           </div>
-          <label for="sql-editor">SQL</label>
-          <textarea id="sql-editor" name="sql" rows="13" spellcheck="false" required>SELECT
-  e.employee_id,
-  e.full_name,
-  e.job_title,
-  s.site_name,
-  st.seat_code,
-  sal.salary_grade
-FROM employee_app.employees AS e
-JOIN employee_app.sites AS s ON s.site_id = e.site_id
-JOIN employee_app.seating AS st ON st.seating_id = e.seating_id
-JOIN employee_app.salaries AS sal ON sal.salary_id = e.salary_id
-ORDER BY e.employee_id
-LIMIT 200;</textarea>
+          <label for="command-editor">Redis command (JSON array)</label>
+          <textarea id="command-editor" name="command" rows="13" spellcheck="false" required>["ZRANGE","fe-neo-app:ids:employees","0","199"]</textarea>
           <div class="form-actions">
             <button class="button button-primary" id="run-query" type="submit">Jalankan query</button>
           </div>
@@ -77,7 +65,7 @@ LIMIT 200;</textarea>
 
         <aside class="surface example-panel" aria-labelledby="examples-title">
           <p class="eyebrow">Preset</p>
-          <h2 id="examples-title">Contoh query</h2>
+          <h2 id="examples-title">Contoh command</h2>
           <div class="example-list">
             <button type="button" data-query-example="employees">Ringkasan pegawai</button>
             <button type="button" data-query-example="devices">Perangkat per pegawai</button>
@@ -85,7 +73,7 @@ LIMIT 200;</textarea>
           </div>
           <div class="policy-block" id="query-policy">
             <h3>Query policy</h3>
-            <p>SELECT, WITH, dan EXPLAIN. Maksimum 200 baris dan satu statement per request.</p>
+            <p>Read-only commands within the application namespace. Maximum 200 result rows per request.</p>
           </div>
         </aside>
       </div>
@@ -117,11 +105,11 @@ LIMIT 200;</textarea>
         <address>Midplaza 1, 7th Floor<br>Jalan Jenderal Sudirman Kav. 10-11<br>Jakarta 10220</address>
       </section>
       <section class="footer-column" aria-labelledby="footer-support"><h2 id="footer-support">Support</h2><a href="#query-policy">Query policy</a><a href="input.html">Data entry</a></section>
-      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">SQL Console</a><a href="input.html">Data Entry</a></section>
-      <section class="footer-column" aria-labelledby="footer-insights"><h2 id="footer-insights">Insights</h2><a href="index.html#schema-title">Schema overview</a><a href="query.html">SQL examples</a></section>
+      <section class="footer-column" aria-labelledby="footer-products"><h2 id="footer-products">Products &amp; Services</h2><a href="query.html">Redis Console</a><a href="input.html">Data Entry</a></section>
+      <section class="footer-column" aria-labelledby="footer-insights"><h2 id="footer-insights">Insights</h2><a href="index.html#schema-title">Schema overview</a><a href="query.html">Redis examples</a></section>
       <section class="footer-column" aria-labelledby="footer-legal"><h2 id="footer-legal">Legal</h2><span>Testing environment</span><span>No production data</span></section>
     </div>
-    <div class="shell footer-meta"><span>Employee Database Lab</span><span>Read-only SQL console</span></div>
+    <div class="shell footer-meta"><span>Employee Database Lab</span><span>Read-only Redis console</span></div>
   </footer>
 </body>
 </html>

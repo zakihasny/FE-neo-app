@@ -1,4 +1,2 @@
-// Public browser configuration only. DATABASE_URL and NATS_URL are backend-only.
-window.NEO_APP_CONFIG = {
-  apiBaseUrl: '/api/'
-}
+// Public browser configuration only. REDIS_URL and NATS_URL are server-only.
+window.NEO_APP_CONFIG = { apiBaseUrl: '/api/' }
