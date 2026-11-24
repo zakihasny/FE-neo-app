@@ -1,6 +1,6 @@
 # Employee Database Lab — MySQL variant
 
-Branch **`db-mysql`** replaces the PostgreSQL runtime dependency with **MySQL 8.4**, using **mysql2@3.24.6**. It targets a fresh store; it does not convert existing PostgreSQL data. Node.js 22+ and pnpm 11.16.0 are required; the retained Dockerfile uses Node.js 24.
+Branch **`db-mysql`** replaces the PostgreSQL runtime dependency with **MySQL 8.0**, using **mysql2@3.24.6**. It targets a fresh store; it does not convert existing PostgreSQL data. Node.js 22+ and pnpm 11.16.0 are required; the retained Dockerfile uses Node.js 24.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ The frontend retains the existing design and data-entry fields. IDs remain numer
 
 | Variable | Requirement/default |
 | --- | --- |
-| `DATABASE_URL` | Required `mysql://user:password@host:3306/database`; the selected database must already exist. |
+| `DATABASE_URL` | Required `mysql://user:password@host:3306/database` for an existing database on MySQL 8.0.x. |
 | `MYSQL_TLS` | Enable verified TLS with `true`; default `false` for private/local fixtures. |
 | `MYSQL_CA_FILE` | Optional mounted CA file; requires TLS enabled. |
 | `NATS_URL` | Required `nats://user:password@host:4222` or supported TLS/token endpoint. |

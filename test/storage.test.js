@@ -18,9 +18,12 @@ test('TLS keeps certificate verification and requires explicit enablement for a 
   assert.equal(secure.ssl.rejectUnauthorized,true);assert.equal(secure.ssl.verifyIdentity,true)
   assert.throws(()=>connectionOptions('mysql://test:pass@localhost/app',{[upper+'_CA_FILE']:'missing'}))
 })
-test('engine version checks distinguish MySQL and MariaDB',()=>{
-  verifyVersion(ENGINE==='mysql'?'8.4.13':'11.4.13-MariaDB')
-  assert.throws(()=>verifyVersion(ENGINE==='mysql'?'11.4.13-MariaDB':'8.4.13'))
+test('engine version checks require the MySQL 8.0 series',()=>{
+  verifyVersion('8.0.46')
+  verifyVersion('8.0.44-log')
+  for (const version of ['5.7.44', '8.4.13', '11.4.13-MariaDB', '8.0.46-MariaDB']) {
+    assert.throws(() => verifyVersion(version), /requires MySQL 8\.0/)
+  }
 })
 test('driver BigInts, decimal strings and timestamps are JSON serializable',()=>{
   const value=normalize({count:3n,huge:9007199254740993n,amount:'6000000.00',at:new Date('2026-01-01T00:00:00Z')})

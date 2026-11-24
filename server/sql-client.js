@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { environmentFlag, normalize } from './storage-utils.js'
 
 export const ENGINE = 'mysql'
-export const VERSION_FAMILY = '8.4'
+export const VERSION_FAMILY = '8.0'
 
 export function connectionOptions(connectionString, environment = process.env) {
   let url
@@ -38,7 +38,7 @@ export function verifyVersion(version) {
   const matches = ENGINE === 'mysql'
     ? text.startsWith(VERSION_FAMILY + '.') && !/mariadb/i.test(text)
     : new RegExp('(?:^|-)' + VERSION_FAMILY.replace('.', '\\.') + '\\.\\d+.*MariaDB', 'i').test(text)
-  if (!matches) throw new Error('This branch requires MySQL 8.4.')
+  if (!matches) throw new Error(`This branch requires MySQL ${VERSION_FAMILY}.`)
 }
 
 export function createPool(connectionString, environment = process.env) {
