@@ -2,7 +2,7 @@
 services:
 
   database:
-    image: redis:8.2.11-alpine
+    image: redis:7.2.17-alpine
     command: ['redis-server', '--requirepass', 'ci-redis-not-for-production', '--appendonly', 'yes', '--appendfsync', 'always', '--maxmemory-policy', 'noeviction']
     ports: ['127.0.0.1:16379:6379']
     volumes: [database-data:/data]

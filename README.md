@@ -1,6 +1,6 @@
 # Employee Database Lab — Redis variant
 
-Branch **`db-redis`** replaces the PostgreSQL runtime dependency with **Redis 8.2**, using **redis@6.3.1**. It targets a fresh store; it does not convert existing PostgreSQL data. Node.js 22+ and pnpm 11.16.0 are required; the retained Dockerfile uses Node.js 24.
+Branch **`db-redis`** replaces the PostgreSQL runtime dependency with **Redis 7.2**, using **redis@6.3.1**. It targets a fresh store; it does not convert existing PostgreSQL data. Node.js 22+ and pnpm 11.16.0 are required; the retained Dockerfile uses Node.js 24.
 
 ## Architecture
 
@@ -44,7 +44,7 @@ The frontend retains the existing design and data-entry fields. IDs remain numer
 
 ## Bootstrap and sample data
 
-`pnpm migrate` initializes key-schema version 1 under the configured prefix; it never uses `FLUSHDB`, expires records, or resets existing counters. Redis must be **standalone 8.2**, with persistent disk, AOF enabled, `appendfsync always`, and `maxmemory-policy noeviction`. The included test Compose config supplies these settings. Operators must provision equivalent settings for deployment; application startup does not change server-wide configuration. Redis Cluster and a PostgreSQL fallback are not implemented.
+`pnpm migrate` initializes key-schema version 1 under the configured prefix; it never uses `FLUSHDB`, expires records, or resets existing counters. Redis must be **standalone 7.2.x**, with persistent disk, AOF enabled, `appendfsync always`, and `maxmemory-policy noeviction`. The included test Compose config supplies these settings. Operators must provision equivalent settings for deployment; application startup does not change server-wide configuration. Redis Cluster and a PostgreSQL fallback are not implemented.
 
 Sample data includes two sites, three salary grades, three seats, three employees, and four devices. The seed is marked once and repeat startup does not duplicate it. Enabling seed on a nonempty, unseeded store is rejected rather than overwriting data. Regular data entry requires salary/seating reference rows; those references are provided by the optional sample seed or operator-managed initialization.
 

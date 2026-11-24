@@ -1,6 +1,12 @@
 import { createClient } from 'redis'
 import { withDeadline } from './storage-utils.js'
 
+export function requireRedisVersion(info) {
+  const version = info.match(/^redis_version:([^\r\n]+)/m)?.[1]
+  if (!version?.startsWith('7.2.')) throw new Error('This branch requires Redis 7.2.')
+  return version
+}
+
 export function keyPrefix(value = process.env.REDIS_KEY_PREFIX || 'fe-neo-app') {
   const prefix = String(value).replace(/:+$/, '')
   if (!/^[A-Za-z][A-Za-z0-9:_-]{0,63}$/.test(prefix)) throw new Error('Invalid REDIS_KEY_PREFIX.')

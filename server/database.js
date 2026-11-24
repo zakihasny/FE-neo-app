@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { openClient, keyPrefix } from './redis-client.js'
+import { openClient, keyPrefix, requireRedisVersion } from './redis-client.js'
 import { guardRedisCommand } from './redis-guard.js'
 import { toJob, withDeadline } from './storage-utils.js'
 import { HttpError, PermanentJobError } from './errors.js'
@@ -22,9 +22,7 @@ export class DatabaseService {
     await this.connection
     if(!this.client.isReady)throw new Error('Redis is disconnected.')
     await this.client.ping()
-    const info=await this.client.info('server')
-    const version=info.match(/^redis_version:([^\r\n]+)/m)?.[1]
-    if(!version?.startsWith('8.2.'))throw new Error('This branch requires Redis 8.2.')
+    const version=requireRedisVersion(await this.client.info('server'))
     if(await this.client.hGet(this.prefix+'schema','version')!=='1')throw new Error('Redis key schema is not initialized.')
     return {database:this.prefix.slice(0,-1),engine:'redis',version}
   }

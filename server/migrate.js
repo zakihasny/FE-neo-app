@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { openClient, keyPrefix } from './redis-client.js'
+import { openClient, keyPrefix, requireRedisVersion } from './redis-client.js'
 export { environmentFlag } from './storage-utils.js'
 const script=await readFile(new URL('./redis-scripts/bootstrap.lua',import.meta.url),'utf8')
 export async function runMigrations(connectionString,{enabled=true,seedSampleData=false,attempts=30,retryDelayMs=2000,logger=console}={}) {
@@ -19,8 +19,7 @@ export async function runMigrations(connectionString,{enabled=true,seedSampleDat
     }
   }
   try{
-    const info=await opened.client.info('server')
-    if(!/^redis_version:8\.2\./m.test(info))throw new Error('This branch requires Redis 8.2.')
+    requireRedisVersion(await opened.client.info('server'))
     const result=JSON.parse(await opened.client.eval(script,{keys:[],arguments:[prefix,String(seedSampleData),JSON.stringify(seed),new Date().toISOString()]}))
     const summary={applied:result.applied?['001']:[],skipped:result.applied?[]:['001'],seeded:result.seeded}
     logger.info?.(JSON.stringify({event:'redis_bootstrap_completed',...summary}))
